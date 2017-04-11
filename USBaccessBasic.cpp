@@ -30,7 +30,8 @@ int nr = 0;
 
 void cwInitCleware()
 {
-	hid_init();
+	if (hid_init() == -1)
+		fprintf(stderr, "Error initializing HID library\n");
 }
 
 void cwCloseCleware()
@@ -255,7 +256,7 @@ int cwOpenCleware(const char *path = NULL)
 
 	memset(&data, 0x00, sizeof data);
 
-	cur_dev = devs = hid_enumerate(0x0d50, 0x0);
+	cur_dev = devs = hid_enumerate(0x0d50, 0);
 
 	while (cur_dev)
 	{

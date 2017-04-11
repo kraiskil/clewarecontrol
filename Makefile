@@ -2,8 +2,8 @@
 VERSION=4.4
 
 DEBUG=-g -W -pedantic #-pg #-fprofile-arcs
-LDFLAGS+=`pkg-config --libs hidapi-hidraw`
-CXXFLAGS+=-O3 -Wall -DVERSION=\"$(VERSION)\" $(DEBUG) `pkg-config --cflags hidapi-hidraw`
+LDFLAGS+=-L/usr/local/hidapi.git/lib -lhidapi-libusb
+CXXFLAGS+=-O3 -Wall -DVERSION=\"$(VERSION)\" $(DEBUG) -I/usr/local/hidapi.git/include
 CFLAGS+=$(CXXFLAGS)
 
 OBJS=main.o USBaccessBasic.o USBaccess.o error.o

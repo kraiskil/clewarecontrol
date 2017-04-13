@@ -88,6 +88,10 @@ class CUSBaccess {
 		CUSBaccess() ;
 		virtual ~CUSBaccess() ;		// maybe used as base class
 
+		virtual double GetTemperatureSimple(int deviceNo);
+                virtual double GetHumiditySimple(int deviceNo);
+                virtual long int GetMultiSwitchSimple(int deviceNo);
+
 		virtual int			OpenCleware() ;			// returns number of found Cleware devices
 		virtual int			CloseCleware() ;		// close all Cleware devices
 		virtual int			Recover(int devNum) ;	// try to find disconnected devices, returns true if succeeded

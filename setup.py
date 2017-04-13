@@ -1,6 +1,6 @@
 from distutils.core import setup, Extension
 srcs = ['cleware_wrap.cxx', 'USBaccessBasic.cpp', 'USBaccess.cpp']
-libs = ['hidapi-hidraw']
+libs = ['hidapi-libusb']
 cleware_module = Extension('_cleware', sources=srcs, libraries=libs)
 
 setup (name = 'cleware',

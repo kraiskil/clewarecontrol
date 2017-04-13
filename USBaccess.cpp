@@ -422,6 +422,16 @@ CUSBaccess::GetSeqSwitch(int deviceNo, enum SWITCH_IDs Switch, int seqNumber) {
 	return ok ;
 	}
 
+long int CUSBaccess::GetMultiSwitchSimple(int deviceNo)
+{
+        static int seqNumber = 0;
+        unsigned long int mask = -1, value = -1;
+
+        GetMultiSwitch(deviceNo, &mask, &value, seqNumber++);
+
+        return value;
+}
+
 int		// rval seqNum = ok, -1 = error	 
 CUSBaccess::GetMultiSwitch(int deviceNo, unsigned long int *mask, unsigned long int *value, int seqNumber) {
 	unsigned char buf[8] = { 0, 0, 0, 0, 0, 0, 0, 0 } ;
@@ -990,6 +1000,15 @@ CUSBaccess::CalmWatchdog(int deviceNo, int minutes, int minutes2restart) {
 	return ok ;
 	}
 
+double CUSBaccess::GetTemperatureSimple(int deviceNo)
+{
+	int dummy;
+	double t = 0;
+	GetTemperature(deviceNo, &t, &dummy);
+
+	return t;
+}
+
 int 
 CUSBaccess::GetTemperature(int deviceNo, double *Temperature, int *timeID) {
 	int ok = 1 ;
@@ -1096,6 +1115,16 @@ CUSBaccess::GetTemperature(int deviceNo, double *Temperature, int *timeID) {
 
 	return ok ;
 	}
+
+double CUSBaccess::GetHumiditySimple(int deviceNo)
+{
+        int dummy;
+        double h;
+
+        GetHumidity(deviceNo, &h, &dummy);
+
+        return h;
+}
 
 int 
 CUSBaccess::GetHumidity(int deviceNo, double *Humidity, int *timeID) {

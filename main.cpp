@@ -25,7 +25,6 @@ double slp = 0.5;
 CUSBaccess CWusb;
 int USBcount = -1;
 bool initted = false;
-char *path = (char *)"/dev/usb/hiddev";
 bool abrt = false;
 const char *ts = NULL;
 FILE *fh = NULL;
@@ -1104,7 +1103,6 @@ void usage(void)
 	fprintf(stderr, "\n");
 
 	help_header("meta");
-	format_help("-p x", NULL, "set path to look for hiddevx devices. normally they're found in /dev/usb (default) or /dev Use this as first parameter!\n");
 	format_help("-l", NULL, "list devices");
 	format_help("-d x", NULL, "use device with serial number 'x' for the next operations");
 	format_help("-c x", NULL, "number of times to repeat the command: 0 for keep running");
@@ -1175,12 +1173,6 @@ int main(int argc, char *argv[])
 			fh = fopen(argv[++loop], "wb");
 			if (!fh)
 				error_exit("Failed to create file %s", argv[loop]);
-		}
-		else if (strcmp(argv[loop], "-p") == 0)
-		{
-			char *par = argv[++loop];
-			path = (char *)malloc(strlen(par) + 16);
-			sprintf(path, "%s/hiddev", par);
 		}
 		else if (strcmp(argv[loop], "-o") == 0)
 		{

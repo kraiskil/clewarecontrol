@@ -1,5 +1,4 @@
-# $Revision: 100 $
-VERSION=4.4
+VERSION=4.5
 
 DEBUG=-g -W -pedantic #-pg #-fprofile-arcs
 LDFLAGS+=-L/usr/local/hidapi.git/lib -lhidapi-libusb

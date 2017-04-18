@@ -1,6 +1,8 @@
 // SVN: $Revision: 61 $
 #include <errno.h>
 #include <iostream>
+#include <libintl.h>
+#include <locale.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -10,6 +12,7 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 
 #include "error.h"
 #include "USBaccess.h"
@@ -885,10 +888,213 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 	return ok ?  0 : -1;
 }
 
+bool ansi_terminal(void)
+{
+	const char *term = getenv("TERM");
+
+	if (!isatty(1) || !isatty(2))
+		return false;
+
+	if (!term)
+		return false;
+
+	if (strcasestr(term, "ansi") == 0)
+		return true;
+
+	if (strcasestr(term, "console") == 0 || strcasestr(term, "con80x25") == 0 || strcasestr(term, "linux") == 0)
+		return true;
+
+	if (strcasestr(term, "screen") == 0)
+		return true;
+
+	if (strcasestr(term, "xterm") == 0)
+		return true;
+
+	if (strcasestr(term, "rxvt") == 0 || strcasestr(term, "konsole") == 0)
+		return true;
+
+	return false;
+}
+
+void set_bold(bool on)
+{
+	if (ansi_terminal()) {
+		if (on)
+			fprintf(stderr, "\x1b[1m");
+		else
+			fprintf(stderr, "\x1b[22m");
+	}
+}
+
+void set_underline(bool on)
+{
+	if (ansi_terminal()) {
+		if (on)
+			fprintf(stderr, "\x1b[4m");
+		else
+			fprintf(stderr, "\x1b[24m");
+	}
+}
+
+void reset_term()
+{
+	if (ansi_terminal())
+		fprintf(stderr, "\x1b[0m\x1b[2K\r");
+}
+
+void help_header(const char *str)
+{
+	fprintf(stderr, "\n");
+
+	set_bold(1);
+	fprintf(stderr, " *** ");
+
+	set_underline(1);
+	fprintf(stderr, "%s", str);
+	set_underline(0);
+
+	fprintf(stderr, " ***\n");
+	set_bold(0);
+}
+
+#define SWITCHES_COLUMN_WIDTH	10
+
+int max_x = 80, max_y = 24;
+
+void determine_terminal_size(void)
+{
+	struct winsize size;
+
+	max_x = max_y = 0;
+
+	if (!isatty(1))
+	{
+		max_y = 24;
+		max_x = 80;
+	}
+#ifdef TIOCGWINSZ
+	else if (ioctl(1, TIOCGWINSZ, &size) == 0)
+	{
+		max_y = size.ws_row;
+		max_x = size.ws_col;
+	}
+#endif
+
+	if (!max_x || !max_y)
+	{
+		char *dummy = getenv("COLUMNS");
+		if (dummy)
+			max_x = atoi(dummy);
+		else
+			max_x = 80;
+
+		dummy = getenv("LINES");
+		if (dummy)
+			max_y = atoi(dummy);
+		else
+			max_y = 24;
+	}
+}
+
+void str_add(char **to, const char *what, ...)
+{
+	int len_to = *to ? strlen(*to) : 0;
+	char *buffer = NULL;
+	int len_what = 0;
+
+	va_list ap;
+
+	va_start(ap, what);
+	len_what = vasprintf(&buffer, what, ap);
+	va_end(ap);
+
+	*to = (char *)realloc(*to, len_to + len_what + 1);
+
+	memcpy(&(*to)[len_to], buffer, len_what);
+
+	(*to)[len_to + len_what] = 0x00;
+
+	free(buffer);
+}
+
+void format_help(const char *short_str, const char *long_str, const char *descr)
+{
+	int par_width = SWITCHES_COLUMN_WIDTH, max_wrap_width = par_width / 2, cur_par_width = 0;
+	int descr_width = max_x - (par_width + 1);
+	char *line = NULL, *p = (char *)descr;
+	char first = 1;
+
+	if (long_str && short_str)
+		str_add(&line, "%-4s / %s", short_str, long_str);
+	else if (long_str)
+		str_add(&line, "%s", long_str);
+	else if (short_str)
+		str_add(&line, "%s", short_str);
+	else
+		line = strdup("");
+
+	cur_par_width = fprintf(stderr, "%-*s ", par_width, line);
+
+	free(line);
+
+	if (par_width + 1 >= max_x || cur_par_width >= max_x) {
+		fprintf(stderr, "%s\n", descr);
+		return;
+	}
+
+	for(;strlen(p);) {
+		char *n =  NULL, *kn = NULL, *copy = NULL;
+		int len_after_ww = 0, len_before_ww = 0;
+		int str_len = 0, cur_descr_width = first ? max_x - cur_par_width : descr_width;
+
+		while(*p == ' ')
+			p++;
+
+		str_len = strlen(p);
+		if (!str_len)
+			break;
+
+		len_before_ww = std::min(str_len, cur_descr_width);
+
+		n = &p[len_before_ww];
+		kn = n;
+
+		if (str_len > cur_descr_width) { 
+			int n_len = 0;
+
+			while (*n != ' ' && n_len < max_wrap_width) {
+				n--;
+				n_len++;
+			}
+
+			if (n_len >= max_wrap_width)
+				n = kn;
+		}
+
+		len_after_ww = (int)(n - p);
+		if (len_after_ww <= 0)
+			break;
+
+		copy = (char *)malloc(len_after_ww + 1);
+		memcpy(copy, p, len_after_ww);
+		copy[len_after_ww] = 0x00;
+
+		if (first)
+			first = 0;
+		else
+			fprintf(stderr, "%*s ", par_width, "");
+
+		fprintf(stderr, "%s\n", copy);
+
+		free(copy);
+
+		p = n;
+	}
+}
+
 void version(void)
 {
-	fprintf(stderr, "clewarecontrol " VERSION ", (C) 2005-2013 by folkert@vanheusden.com\n");
-	fprintf(stderr, "SVN revision: $Revision: 61 $\n");
+	fprintf(stderr, "clewarecontrol " VERSION ", (C) 2005-2017 by folkert@vanheusden.com\n");
 }
 
 void usage(void)
@@ -897,37 +1103,44 @@ void usage(void)
 
 	fprintf(stderr, "\n");
 
-	fprintf(stderr, "-p x     set path to look for hiddevx devices. normally they're found in /dev/usb (default) or /dev Use this as first parameter!\n");
-	fprintf(stderr, "-l       list devices\n");
-	fprintf(stderr, "-d x     use device with serial number 'x' for the next operations\n");
-	fprintf(stderr, "-c x     number of times to repeat the command: 0 for keep running\n");
-	fprintf(stderr, "-i x     delay between each command invocation\n");
-	fprintf(stderr, "-t       add a timestamp before each line (in seconds since 1970), also see -T\n");
-	fprintf(stderr, "-T x     add a timestamp before each line, x defines the format. see \"man strftime\" for supported parameters\n");
-	fprintf(stderr, "-rt      read temperature\n");
-	fprintf(stderr, "-rh      read humidity\n");
-	fprintf(stderr, "-rs x    read switch 'x'\n");
-	fprintf(stderr, "-rp      read external switch\n");
-	fprintf(stderr, "-rr      shows how often the auto-reset kicked in\n");
-	fprintf(stderr, "-rm      read states of the USB-IO16 lines\n");
-	fprintf(stderr, "-rc x    read counter (x= 0 or 1)\n");
-	fprintf(stderr, "-ra x    read ADC, x=0 for 5.181V, 1 for 13.621V and 2 for 24.704\n");
-	fprintf(stderr, "-ar      reset device\n");
-	fprintf(stderr, "-as x y  set switch x to y (0=off, 1=on)\n");
-	fprintf(stderr, "-ag      start device\n");
-	fprintf(stderr, "-al x y  set led x to y (0...15)\n");
-	fprintf(stderr, "-am x    set the states of the USB-IO16 lines: x must be a hexvalue\n");
-	fprintf(stderr, "-ad x    set the directions of the USB-IO16 lines (hexvalue)\n");
-	fprintf(stderr, "-ac x y  set counter x to y (x= 0 or 1)\n");
-	fprintf(stderr, "-ai x    set ADC channel, x is either 0 or 1\n");
-	fprintf(stderr, "-cfg x   configure the device to be a watchdog (0), autoreset (1), switch (2) or switch ATXX (3)\n");
-	fprintf(stderr, "-w       become daemon-process that pats the watchdog\n");
-	fprintf(stderr, "-o x     offset to add to values\n");
-	fprintf(stderr, "-O x     output type (brief (former -b), readable (default), spreadsheet (xml spreadsheet, compatible with e.g. openoffice and microsoft excel)\n");
-	fprintf(stderr, "-f x     send output to file (only measured data, errors are emitted to your console/terminal)\n");
-	fprintf(stderr, "-mintrig x y  if the value read (temperature, humidity, counter, ADC) becomes less than x, then spawn process y\n");
-	fprintf(stderr, "-maxtrig x y  if the value read (temperature, humidity, counter, ADC) becomes bigger than x, then spawn process y\n");
-	fprintf(stderr, "-F       fork into the background (become daemon)\n");
+	help_header("meta");
+	format_help("-p x", NULL, "set path to look for hiddevx devices. normally they're found in /dev/usb (default) or /dev Use this as first parameter!\n");
+	format_help("-l", NULL, "list devices");
+	format_help("-d x", NULL, "use device with serial number 'x' for the next operations");
+	format_help("-c x", NULL, "number of times to repeat the command: 0 for keep running");
+	format_help("-i x", NULL, "delay between each command invocation");
+	format_help("-t", NULL, "add a timestamp before each line (in seconds since 1970), also see -T");
+	format_help("-T x", NULL, "add a timestamp before each line, x defines the format. see \"man strftime\" for supported parameters");
+	format_help("-F", NULL, "fork into the background (become daemon)");
+
+	help_header("read");
+	format_help("-rt", NULL, "read temperature");
+	format_help("-rh", NULL, "read humidity");
+	format_help("-rs x", NULL, "read switch 'x'");
+	format_help("-rp", NULL, "read external switch");
+	format_help("-rr", NULL, "shows how often the auto-reset kicked in");
+	format_help("-rm", NULL, "read states of the USB-IO16 lines");
+	format_help("-rc x", NULL, "read counter (x= 0 or 1)");
+	format_help("-ra x", NULL, "read ADC, x=0 for 5.181V, 1 for 13.621V and 2 for 24.704");
+
+	help_header("do");
+	format_help("-ar", NULL, "reset device");
+	format_help("-as x y", NULL, "set switch x to y (0=off, 1=on)");
+	format_help("-ag", NULL, "start device");
+	format_help("-al x y", NULL, "set led x to y (0...15)");
+	format_help("-am x", NULL, "set the states of the USB-IO16 lines: x must be a hexvalue");
+	format_help("-ad x", NULL, "set the directions of the USB-IO16 lines (hexvalue)");
+	format_help("-ac x y", NULL, "set counter x to y (x= 0 or 1)");
+	format_help("-ai x", NULL, "set ADC channel, x is either 0 or 1");
+	format_help("-cfg x", NULL, "configure the device to be a watchdog (0), autoreset (1), switch (2) or switch ATXX (3)");
+	format_help("-w", NULL, "become daemon-process that pats the watchdog");
+
+	help_header("output");
+	format_help("-o x", NULL, "offset to add to values");
+	format_help("-O x", NULL, "output type (brief (former -b), readable (default), spreadsheet (xml spreadsheet, compatible with e.g. openoffice and microsoft excel)");
+	format_help("-f x", NULL, "send output to file (only measured data, errors are emitted to your console/terminal)");
+	format_help("-mintrig x y", NULL, "if the value read (temperature, humidity, counter, ADC) becomes less than x, then spawn process y");
+	format_help("-maxtrig x y", NULL, "if the value read (temperature, humidity, counter, ADC) becomes bigger than x, then spawn process y");
 }
 
 int main(int argc, char *argv[])

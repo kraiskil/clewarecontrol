@@ -1118,6 +1118,8 @@ void usage(void)
 	format_help("-f x", NULL, _("send output to file (only measured data, errors are emitted to your console/terminal)"));
 	format_help("-mintrig x y", NULL, _("if the value read (temperature, humidity, counter, ADC) becomes less than x, then spawn process y"));
 	format_help("-maxtrig x y", NULL, _("if the value read (temperature, humidity, counter, ADC) becomes bigger than x, then spawn process y"));
+
+	fprintf(stderr, "\n");
 }
 
 int main(int argc, char *argv[])

@@ -1,0 +1,446 @@
+# clewarecontrol
+# Copyright (C) 2017 Folkert van Heusden
+# This file is distributed under the same license as the clewarecontrol package.
+# Folkert van Heusden <mail@vanheusden.com>, 2017
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: 4.5\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2017-04-19 20:21+0200\n"
+"PO-Revision-Date: 2017-04-19 20:21+0200\n"
+"Last-Translator: Folkert van Heusden <mail@vanheusden.com>\n"
+"Language-Team: NL <nl@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: main.cpp:757
+#, c-format
+msgid ""
+"%d is not a valid setting. Valid parameters: 0 (watchdog), 1 (autoreset), 2 "
+"(switch) and 3 (switch ATXX)\n"
+msgstr ""
+"%d is niet een valide instelling: 0 (watchdog), 1 (autoreset), 2 (switch) "
+" en 3 (switch ATXX)\n"
+
+#: main.cpp:42
+#, c-format
+msgid "Aborting program\n"
+msgstr "Afbreken van programma\n"
+
+#: main.cpp:686
+msgid "Auto reset count"
+msgstr "Aantal automatische herstarts"
+
+#: main.cpp:687
+msgid "Auto reset duration"
+msgstr "Auto herstart duur"
+
+#: main.cpp:715
+msgid "Bit-pattern set"
+msgstr "Bit-patroon gezet"
+
+#: main.cpp:801
+#, c-format
+msgid "Channel %d selected"
+msgstr "Kanaal %d geselecteerd"
+
+#: main.cpp:194
+#, c-format
+msgid "Cleware library version: %d\n"
+msgstr "Cleware bibliotheek versie: %d\n"
+
+#: main.cpp:769
+msgid "Counter"
+msgstr "Teller"
+
+#: main.cpp:846
+#, c-format
+msgid "Counter %d set"
+msgstr "Teller %d geconfigureerd"
+
+#: main.cpp:590
+#, c-format
+msgid "Device %d not found"
+msgstr "Apparaat %d niet gevonden"
+
+#: main.cpp:247
+#, c-format
+msgid "Device %d not found!"
+msgstr "Apparaat %d niet gevonden!"
+
+#: main.cpp:187
+msgid "Device ID not recognised!"
+msgstr "Apparaat ID niet herkend!"
+
+#: main.cpp:631
+msgid "Device resetted"
+msgstr "Apparaat herstart"
+
+#: main.cpp:664
+msgid "Device started"
+msgstr "Apparaat gestart"
+
+#: main.cpp:201
+#, c-format
+msgid "Device: %d, type: %s (%d), version: %d, serial number: %d\n"
+msgstr "Apparaat: %d, type: %s (%d), versie: %d, serie nummer: %d\n"
+
+#: main.cpp:724
+msgid "Directions set"
+msgstr "Richtingen geconfigureerd"
+
+#: main.cpp:778
+#, c-format
+msgid "Failed resetting device, channel switch failed\n"
+msgstr "Probleem bij herstarten apparaat, kanaal wisseling faalde\n"
+
+#: main.cpp:860
+#, c-format
+msgid "Failed to access device %d\n"
+msgstr "Probleem bij benaderen apparaat %d\n"
+
+#: main.cpp:1154
+msgid "Failed to become daemon process"
+msgstr "Fout bij overschakelen naar achtergrond proces"
+
+#: main.cpp:252
+msgid "Failed to become daemon process\n"
+msgstr "Fout bij overschakelen naar achtergrond proces\n"
+
+#: main.cpp:1160
+#, c-format
+msgid "Failed to create file %s"
+msgstr "Fout bij maken bestand %s"
+
+#: main.cpp:518
+#, c-format
+msgid "Failed to execlp(%s)\n"
+msgstr "Systeem fout! (execlp %s)\n"
+
+#: main.cpp:514
+#, c-format
+msgid "Failed to fork!\n"
+msgstr "Systeem fout! (fork)\n"
+
+#: main.cpp:844
+#, c-format
+msgid "Failed to set counter %d\n"
+msgstr "Probleem bij instellen van teller %d\n"
+
+#: main.cpp:261
+msgid "Failed to tap the watchdog 10 times"
+msgstr "Fout bij aansturing watchdog apparaat (10x mislukt)"
+
+#: main.cpp:653
+msgid "Humidity"
+msgstr "Luchtvochtigheid"
+
+#: main.cpp:852
+#, c-format
+msgid "Internal error! (unknown command %d)"
+msgstr "Interne fout! (onbekend commando %d)"
+
+#: main.cpp:673
+#, c-format
+msgid "LED %d"
+msgstr "LED %d"
+
+#: main.cpp:577
+#, c-format
+msgid "No device found\n"
+msgstr "Geen apparaat gevonden\n"
+
+#: main.cpp:580
+#, c-format
+msgid ""
+"Not running as root: does your current user have enough rights to access the "
+"device?\n"
+msgstr ""
+"Dit programma draait niet als root-gebruiker: heeft u genoeg rechten om het"
+"apparaat te besturen?\n"
+
+#: main.cpp:751
+#, c-format
+msgid "Now first unplug (and replug) the device before use!\n"
+msgstr "Voordat u het apparaat kunt gebruiken moet het eerst"
+"worden ontkoppeld en weer aangesloten.\n"
+
+#: main.cpp:195
+#, c-format
+msgid "Number of Cleware devices found: %d\n"
+msgstr "Aantal gevonden Cleware apparaten: %d\n"
+
+#: main.cpp:862
+#, c-format
+msgid "Occasionally (%d/%d) failed to access device %d\n"
+msgstr "Af en toe (%d/%d reageerde apparaat %d niet\n"
+
+#: main.cpp:640
+msgid "Off"
+msgstr "Uit"
+
+#: main.cpp:640
+msgid "On"
+msgstr "Aan"
+
+#: main.cpp:792
+#, c-format
+msgid "Only channel 0 or 1 are supported\n"
+msgstr "Alleen kanaal 0 en 1 worden ondersteund\n"
+
+#: main.cpp:1194
+#, c-format
+msgid "Output format \"%s\" is not recognized\n"
+msgstr "Output indeling \"%s\" is niet herkend\n"
+
+#: main.cpp:823
+#, c-format
+msgid "Problem retrieving measurement\n"
+msgstr "Probleem bij ophalen meting\n"
+
+#: main.cpp:798
+#, c-format
+msgid "Problem setting ADC channel\n"
+msgstr "Probleem bij configureren ADC kanaal\n"
+
+#: main.cpp:817
+#, c-format
+msgid "Second parameter must be either 0, 1 or 2. See help (-h).\n"
+msgstr "2e parameter moet 0, 1 of 2 zijn. Zie help (-h).\n"
+
+#: main.cpp:509
+#, c-format
+msgid "Starting childprocess: %s\n"
+msgstr "Starten van kind proces: %s\n"
+
+#: main.cpp:622
+msgid "Status"
+msgstr "Status"
+
+#: main.cpp:706
+msgid "Statusses of lines"
+msgstr "Status van de pinnen"
+
+#: main.cpp:640
+#, c-format
+msgid "Switch %d"
+msgstr "Schakelaar %d"
+
+#: main.cpp:1342
+#, c-format
+msgid "Switch '%s' is not recognized.\n"
+msgstr "Schakelaar '%s' is niet herkend.\n"
+
+#: main.cpp:679
+msgid "Switched on count"
+msgstr "Aan-frequentie"
+
+#: main.cpp:680
+msgid "Switched on duration "
+msgstr "Aan-tijd"
+
+#: main.cpp:608
+msgid "Temperature"
+msgstr "Temperatuur"
+
+#: main.cpp:587
+#, c-format
+msgid "Using device with serial number: %d\n"
+msgstr "Het apparaat met serie nummer %d wordt gebruikt.\n"
+
+#: main.cpp:835
+msgid "Voltage"
+msgstr "Voltage"
+
+#: main.cpp:762
+#, c-format
+msgid ""
+"You can only perform this action a watchdog-, an autoreset- or a switch "
+"device!\n"
+msgstr ""
+"Deze actie werkt alleen op een watchdog-, een autoreset of een schakelaar!\n"
+
+#: main.cpp:569
+#, c-format
+msgid "You did not select a device, using first device found.\n"
+msgstr "Geen apparaat gekozen; eerst gevonden apparaat wordt gebruikt.\n"
+
+#: main.cpp:1089
+msgid "add a timestamp before each line (in seconds since 1970), also see -T"
+msgstr "voeg een tijdstempel toe aan iedere regel (aantal seconden sinds"
+"1970) zie ook -T"
+
+#: main.cpp:1090
+msgid ""
+"add a timestamp before each line, x defines the format. see \"man strftime\" "
+"for supported parameters"
+msgstr ""
+"voeg een tijdstempel toe aan iedere regel. x geeft de indeling aan. zie de"
+"handleiding van \"strftime\" voor details (man strftime)"
+
+#: main.cpp:1113
+msgid "become daemon-process that pats the watchdog"
+msgstr "voorkom dat de watchdog het systeem reset"
+
+#: main.cpp:1112
+msgid ""
+"configure the device to be a watchdog (0), autoreset (1), switch (2) or "
+"switch ATXX (3)"
+msgstr "configureer het apparaat te functioneren als een watchdog (0),"
+"een autoreset (1), een schakelaar (2) or een switch ATXX (3)"
+
+#: main.cpp:1088
+msgid "delay between each command invocation"
+msgstr "vertraging tussen het uitvoeren van iedere iteratie"
+
+#: main.cpp:1103
+msgid "do"
+msgstr "uitvoeren"
+
+#: main.cpp:1091
+msgid "fork into the background (become daemon)"
+msgstr "wordt een achtergrond proces"
+
+#: main.cpp:1120
+msgid ""
+"if the value read (temperature, humidity, counter, ADC) becomes bigger than "
+"x, then spawn process y"
+msgstr "als de gelezen waarde (temperatuur, luchtvochtigheid, teller, ADC)"
+"hoger is dan x, start dan proces y"
+
+#: main.cpp:1119
+msgid ""
+"if the value read (temperature, humidity, counter, ADC) becomes less than x, "
+"then spawn process y"
+msgstr "als de gelezen waarde (temperatuur, luchtvochtigheid, teller, ADC)"
+"lager is dan x, start dan proces y"
+
+#: main.cpp:1085
+msgid "list devices"
+msgstr "overzicht van appraten"
+
+#: main.cpp:68
+#, c-format
+msgid "localtime(%ld) failed"
+msgstr "localtime() faalde"
+
+#: main.cpp:1084
+msgid "meta"
+msgstr "meta"
+
+#: main.cpp:63
+msgid "n/a"
+msgstr "niet van toepassing"
+
+#: main.cpp:1087
+msgid "number of times to repeat the command: 0 for keep running"
+msgstr "hoevaak een commando te herhalen: 0= oneindig"
+
+#: main.cpp:1116
+msgid "offset to add to values"
+msgstr "getal om op te tellen bij waardes"
+
+#: main.cpp:1115
+msgid "output"
+msgstr "uitvoer"
+
+#: main.cpp:1117
+msgid ""
+"output type (brief (former -b), readable (default), spreadsheet (xml "
+"spreadsheet, compatible with e.g. openoffice and microsoft excel)"
+msgstr ""
+"output type (kort (voorheen -b), leesbaar (standaard), spreadsheet (xml"
+"spreadsheet, kompatibel met o.a. openoffice en microsoft excel)"
+
+#: main.cpp:1101
+msgid "read ADC, x=0 for 5.181V, 1 for 13.621V and 2 for 24.704"
+msgstr "lees ADC. x selecteert het voltage: x=0 voor 5.181V, 1 voor 13.621V en 2 voor 24.704"
+
+#: main.cpp:1100
+msgid "read counter (x= 0 or 1)"
+msgstr "lees teller x (0 of 1)"
+
+#: main.cpp:1097
+msgid "read external switch"
+msgstr "lees externe schakelaar"
+
+#: main.cpp:1095
+msgid "read humidity"
+msgstr "lees luchtvochtigheid"
+
+#: main.cpp:1099
+msgid "read states of the USB-IO16 lines"
+msgstr "lees the status van de USB-IO16 pinnen"
+
+#: main.cpp:1096
+msgid "read switch 'x'"
+msgstr "lees stand schakelaar x"
+
+#: main.cpp:1094
+msgid "read temperature"
+msgstr "lees temperatuur"
+
+#: main.cpp:1104
+msgid "reset device"
+msgstr "herstarten apparaat"
+
+#: main.cpp:1093
+msgid "retrieve"
+msgstr "uitlezen"
+
+#: main.cpp:1118
+msgid ""
+"send output to file (only measured data, errors are emitted to your console/"
+"terminal)"
+msgstr "stuur uitvoer naar een bestand (alleen voor gemeten data; foutmeldingen"
+"gaan gewoon naar het console)"
+
+#: main.cpp:1111
+msgid "set ADC channel, x is either 0 or 1"
+msgstr "kies ADC kanaal; 0 of 1"
+
+#: main.cpp:1110
+msgid "set counter x to y (x= 0 or 1)"
+msgstr "zet teller x (0 of 1) op waarde y"
+
+#: main.cpp:1107
+msgid "set led x to y (0...15)"
+msgstr "zet led x (0...15) naar stand y; 0=uit, 1=aan"
+
+#: main.cpp:1105
+msgid "set switch x to y (0=off, 1=on)"
+msgstr "zet een schakelaar x naar stand y; 0=uit, 1=aan"
+
+#: main.cpp:1109
+msgid "set the directions of the USB-IO16 lines (hexvalue)"
+msgstr "zet de richting van de signalen van de USB-IO16 pinnen (hexadecimaal getal)"
+
+#: main.cpp:1108
+msgid "set the states of the USB-IO16 lines: x must be a hexvalue"
+msgstr "zet the status van the USB-IO16 pinnen: x moet een hexadecimaal getal zijn"
+
+#: main.cpp:673
+#, c-format
+msgid "set to %d"
+msgstr "gezet naar %d"
+
+#: main.cpp:640
+#, c-format
+msgid "set to %s"
+msgstr "gezet naar %s"
+
+#: main.cpp:1098
+msgid "shows how often the auto-reset kicked in"
+msgstr "laat zien hoe vaak the auto-reset gestart is"
+
+#: main.cpp:1106
+msgid "start device"
+msgstr "start apparaat"
+
+#: main.cpp:1086
+msgid "use device with serial number 'x' for the next operations"
+msgstr "gebruik het apparaat met serienummer 'x' voor de hierop volgende acties"

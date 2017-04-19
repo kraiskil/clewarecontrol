@@ -6,10 +6,14 @@ CXXFLAGS+=-O3 -Wall -DVERSION=\"$(VERSION)\" $(DEBUG) -I/usr/local/hidapi.git/in
 CFLAGS+=$(CXXFLAGS)
 
 OBJS=main.o USBaccessBasic.o USBaccess.o error.o
+TRANSLATIONS=nl.mo
 
 all: clewarecontrol
 
-clewarecontrol: $(OBJS)
+nl.mo: nl.po
+	msgfmt -o nl.mo nl.po
+
+clewarecontrol: $(OBJS) $(TRANSLATIONS)
 	$(CXX) $(OBJS) $(LDFLAGS) -o clewarecontrol
 
 cleware_python cleware_python3:  pyswig
@@ -24,12 +28,14 @@ cleware_perl:
 	g++ `perl -MConfig -e 'print $$Config{lddlflags}'` cleware_wrap.o USBaccessBasic.o USBaccess.o -o cleware.so
 	./install-lib.pl
 
-install: clewarecontrol
+install: clewarecontrol $(TRANSLATIONS)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
 	cp clewarecontrol $(DESTDIR)$(PREFIX)/bin
 	mkdir -p $(DESTDIR)$(PREFIX)/share/man/man1
 	cp clewarecontrol.1 $(DESTDIR)$(PREFIX)/share/man/man1/clewarecontrol.1
 	gzip -9 $(DESTDIR)$(PREFIX)/share/man/man1/clewarecontrol.1
+	mkdir -p $(DESTDIR)/usr/share/locale/nl/LC_MESSAGES
+	cp nl.mo $(DESTDIR)/usr/share/locale/nl/LC_MESSAGES/clewarecontrol.mo
 
 uninstall: clean
 	rm -f $(DESTDIR)$(PREFIX)/bin/clewarecontrol

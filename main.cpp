@@ -17,6 +17,8 @@
 #include "error.h"
 #include "USBaccess.h"
 
+#define _ gettext
+
 typedef enum { O_BRIEF, O_FULL, O_SS } output_t;
 output_t ot = O_FULL;
 
@@ -37,7 +39,7 @@ void sigh(int sig)
 {
 	abrt = true;
 
-	fprintf(stderr, "Aborting program\n");
+	fprintf(stderr, _("Aborting program\n"));
 }
 
 std::string format(const char *fmt, ...)
@@ -58,12 +60,12 @@ std::string format(const char *fmt, ...)
 std::string time_to_str(double t_in)
 {
         if (t_in <= 0)
-                return "n/a";
+                return _("n/a");
 
         time_t t = (time_t)t_in;
         struct tm *tm = localtime(&t);
         if (!tm)
-                error_exit("localtime(%ld) failed", (long int)t);
+                error_exit(true, _("localtime(%ld) failed"), (long int)t);
 
         char time_buffer[128];
         snprintf(time_buffer, sizeof time_buffer, "%04d-%02d-%02dT%02d:%02d:%02d.%03d",
@@ -182,22 +184,21 @@ const char * device_id_to_string(int id)
 		return "Button no device";
 	}
 
-printf("%d\n", id);
-	return "Device ID not recognised!";
+	return _("Device ID not recognised!");
 }
 
 void list_devices()
 {
 	init();
 
-	printf("Cleware library version: %d\n", CWusb.GetDLLVersion());
-        printf("Number of Cleware devices found: %d\n", USBcount);
+	printf(_("Cleware library version: %d\n"), CWusb.GetDLLVersion());
+        printf(_("Number of Cleware devices found: %d\n"), USBcount);
 
         for (int devID=0; devID < USBcount; devID++)
 	{
                 int devType = CWusb.GetUSBType(devID);
 
-		printf("Device: %d, type: %s (%d), version: %d, serial number: %d\n",
+		printf(_("Device: %d, type: %s (%d), version: %d, serial number: %d\n"),
 			devID,
 			device_id_to_string(devType), devType,
 			CWusb.GetVersion(devID),
@@ -243,43 +244,25 @@ int start_tapping_the_watchdog(int device_id)
 	int usb_id = find_usb_id(device_id);
 
 	if (usb_id == -1)
-		error_exit("Device %d not found!", device_id);
+		error_exit(false, _("Device %d not found!"), device_id);
 
-	pid_t pid = fork();
+	int err_cnt = 0;
 
-	if (pid == -1)
-	{
-		fprintf(stderr, "Failed to fork");
-		return 1;
-	}
+	if (daemon(0, 0) == -1)
+		error_exit(true, _("Failed to become daemon process\n"));
 
-	if (pid == 0)
-	{
-		int err_cnt = 0;
+	for(;;) {
+		int time1 = 1, time2 = 5;
 
-		if (daemon(0, 0) == -1)
-		{
-			fprintf(stderr, "Failed to become daemon process\n");
-			return 1;
+		if (!CWusb.CalmWatchdog(usb_id, time1, time2)) {
+			err_cnt++;
+
+			if (err_cnt == 10)
+				error_exit(false, _("Failed to tap the watchdog 10 times"));
 		}
 
-		for(;;)
-		{
-			int time1 = 1, time2 = 5;
-
-			if (!CWusb.CalmWatchdog(usb_id, time1, time2))
-			{
-				err_cnt++;
-
-				if (err_cnt == 10)
-					error_exit("Failed to tap the watchdog 10 times");
-			}
-
-			sleep(2);
-		}
+		sleep(2);
 	}
-
-	printf("Watchdog started\n");
 
 	return 0;
 }
@@ -309,8 +292,7 @@ void emit_ts()
 
 void init_output()
 {
-	if (ot == O_SS)
-	{
+	if (ot == O_SS) {
 		emit(format("<?xml version=\"1.0\"?>\n"));
 		emit(format("<?mso-application progid=\"Excel.Sheet\"?>\n"));
 		emit(format("<Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\"\n"));
@@ -390,7 +372,7 @@ void init_command_output(int command, int dev_serial)
 				name = "set adc";
 				break;
 			default:
-				error_exit("Internal error (unknown command)");
+				error_exit(false, "Internal error (unknown command)");
 		}
 
 		emit(format("<Worksheet ss:Name=\"%s\">\n", name));
@@ -524,16 +506,16 @@ void output(std::string value)
 void spawn_script(const char *proc, const char *par)
 {
 	if (ot == O_FULL)
-		fprintf(stderr, "Starting childprocess: %s\n", proc);
+		fprintf(stderr, _("Starting childprocess: %s\n"), proc);
 
 	pid_t pid = fork();
 
 	if (pid == -1)
-		fprintf(stderr ,"Failed to fork!\n");
+		fprintf(stderr, _("Failed to fork!\n"));
 	else if (pid == 0)
 	{
 		if (-1 == execlp(proc, proc, par, (void *)NULL))
-			fprintf(stderr, "Failed to execlp(%s)\n", proc);
+			fprintf(stderr, _("Failed to execlp(%s)\n"), proc);
 
 		exit(1);
 	}
@@ -584,7 +566,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 	int usb_id = -1, retry;
 
 	if (device_id == -1)
-		fprintf(stderr, "You did not select a device, using first device found.\n");
+		fprintf(stderr, _("You did not select a device, using first device found.\n"));
 
 	usb_id = find_usb_id(device_id);
 
@@ -592,23 +574,20 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 	{
 		if (usb_id == -1)
 		{
-			fprintf(stderr, "No device found\n");
+			fprintf(stderr, _("No device found\n"));
 
 			if (getuid())
-				fprintf(stderr, "Not running as root: does your current user have enough rights to access the device?\n");
-			else
-				fprintf(stderr, "You might need to use -p.\n");
+				fprintf(stderr, _("Not running as root: does your current user have enough rights to access the device?\n"));
 
 			exit(1);
 		}
 
 		device_id = CWusb.GetSerialNumber(usb_id);
 
-		if (ot == O_FULL) printf("Using device with serial number: %d\n", device_id);
+		if (ot == O_FULL) printf(_("Using device with serial number: %d\n"), device_id);
 	}
-	else if (usb_id == -1)
-	{
-		error_exit("Device %d not found", device_id);
+	else if (usb_id == -1) {
+		error_exit(false, _("Device %d not found"), device_id);
 	}
 
 	init_command_output(command, device_id);
@@ -626,7 +605,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 
 			if (CWusb.GetTemperature(usb_id, &temperature, &time) && time != prev_time)
 			{
-				output("Temperature", temperature + offset);
+				output(_("Temperature"), temperature + offset);
 
 				eval_val(temperature + offset);
 
@@ -640,7 +619,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 			// if ((status = CWusb.GetSwitch(usb_id, (CUSBaccess::SWITCH_IDs)par)) != -1)
 			if ((status = CWusb.GetSeqSwitch(usb_id, (CUSBaccess::SWITCH_IDs)par, 0)) != -1)
 			{
-				output("Status", format("%s (%d)", status?"On":"Off", status));
+				output(_("Status"), format("%s (%d)", status?"On":"Off", status));
 
 				ok++;
 			}
@@ -649,7 +628,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 		{
 			if (CWusb.ResetDevice(usb_id))
 			{
-				output("Device resetted");
+				output(_("Device resetted"));
 
 				ok++;
 			}
@@ -658,7 +637,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 		{
 			if (CWusb.SetSwitch(usb_id, (CUSBaccess::SWITCH_IDs)par, par2))
 			{
-				output(format("Switch %d", par - 16), format("set to %s", par2?"On":"Off"));
+				output(format(_("Switch %d"), par - 16), format(_("set to %s"), par2 ? _("On"):_("Off")));
 
 				ok++;
 			}
@@ -671,7 +650,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 
 			if (CWusb.GetHumidity(usb_id, &humidity, &time) && prev_time != time)
 			{
-				output("Humidity", humidity + offset);
+				output(_("Humidity"), humidity + offset);
 
 				eval_val(humidity + offset);
 
@@ -682,7 +661,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 		{
 			if (CWusb.StartDevice(usb_id))
 			{
-				output("Device started");
+				output(_("Device started"));
 
 				ok++;
 			}
@@ -691,21 +670,21 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 		{
 			if (CWusb.SetLED(usb_id, (CUSBaccess::LED_IDs)par, par2))
 			{
-				output(format("LED %d", par), format("set to %d", par2));
+				output(format(_("LED %d"), par), format(_("set to %d"), par2));
 				ok++;
 			}
 		}
 		else if (command == READ_EXTERNAL_SWITCH)
 		{
-			output("Switched on count", CWusb.GetManualOnCount(usb_id));
-			output("Switched on duration ", CWusb.GetManualOnTime(usb_id));
+			output(_("Switched on count"), CWusb.GetManualOnCount(usb_id));
+			output(_("Switched on duration "), CWusb.GetManualOnTime(usb_id));
 
 			ok++;
 		}
 		else if (command == READ_AUTO_RESET)
 		{
-			output("Auto reset count", CWusb.GetOnlineOnCount(usb_id));
-			output("Auto reset duration", CWusb.GetOnlineOnTime(usb_id));
+			output(_("Auto reset count"), CWusb.GetOnlineOnCount(usb_id));
+			output(_("Auto reset duration"), CWusb.GetOnlineOnTime(usb_id));
 
 			ok++;
 		}
@@ -724,7 +703,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 						bits += "0";
 				}
 
-				output("Statusses of lines", bits);
+				output(_("Statusses of lines"), bits);
 
 				ok++;
 			}
@@ -733,7 +712,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 		{
 			if (CWusb.SetMultiSwitch(usb_id, par) == 0)
 			{
-				output("Bit-pattern set.");
+				output(_("Bit-pattern set"));
 
 				ok++;
 			}
@@ -742,7 +721,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 		{
 			if (CWusb.SetMultiConfig(usb_id, par) == 0)
 			{
-				output("Directions set.");
+				output(_("Directions set"));
 
 				ok++;
 			}
@@ -769,25 +748,25 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 					CWusb.SetValue(usb_id, buf, 3);
 					CWusb.SetLED(usb_id, CUSBaccess::LED_3, 0);
 
-					fprintf(stderr, "Now first unplug (and replug) the device before use!\n");
+					fprintf(stderr, _("Now first unplug (and replug) the device before use!\n"));
 
 					ok++;
 				}
 				else
 				{
-					fprintf(stderr, "%d is not a valid setting. Valid parameters: 0 (watchdog), 1 (autoreset), 2 (switch) and 3 (switch ATXX)\n", par);
+					fprintf(stderr, _("%d is not a valid setting. Valid parameters: 0 (watchdog), 1 (autoreset), 2 (switch) and 3 (switch ATXX)\n"), par);
 				}
 			}
 			else
 			{
-				fprintf(stderr, "One can only perform this action a watchdog-, an autoreset- or a switch device!\n");
+				fprintf(stderr, _("You can only perform this action a watchdog-, an autoreset- or a switch device!\n"));
 			}
 		}
 		else if (command == READ_COUNTER)
 		{
 			int value = CWusb.GetCounter(usb_id, (CUSBaccess::COUNTER_IDs)par);
 
-			output("Counter", value);
+			output(_("Counter"), value);
 
 			eval_val(value);
 
@@ -796,7 +775,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 		else if (command == SET_ADC_CHANNEL)
 		{
 			if (CWusb.ResetDevice(usb_id) == 0)
-				fprintf(stderr, "Failed resetting device, channel switch failed\n");
+				fprintf(stderr, _("Failed resetting device, channel switch failed\n"));
 			else
 			{
 				unsigned char buf[3] = { 0 };
@@ -810,16 +789,16 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 				}
 				else
 				{
-					fprintf(stderr, "Only channel 0 or 1 are supported\n");
+					fprintf(stderr, _("Only channel 0 or 1 are supported\n"));
 				}
 
 				if (buf[0])
 				{
 					if (CWusb.SetValue(usb_id, buf, 3) == 0)
-						fprintf(stderr, "Problem setting ADC channel\n");
+						fprintf(stderr, _("Problem setting ADC channel\n"));
 					else
 					{
-						output(format("Channel %d selected", par));
+						output(format(_("Channel %d selected"), par));
 						ok++;
 					}
 				}
@@ -835,13 +814,13 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 			else if (par == 2)
 				scale = 24.704;
 			else
-				fprintf(stderr, "Second parameter must be either 0, 1 or 2. See help (-h).\n");
+				fprintf(stderr, _("Second parameter must be either 0, 1 or 2. See help (-h).\n"));
 
 			if (scale > 0)
 			{
 				unsigned char buf[4];
 				if (CWusb.GetValue(usb_id, buf, sizeof buf) == 0)
-					fprintf(stderr, "Problem retrieving measurement\n");
+					fprintf(stderr, _("Problem retrieving measurement\n"));
 				else
 				{
 					unsigned char nibble1 = buf[2 + 0] & 0x0f;
@@ -853,7 +832,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 
 					eval_val(value);
 
-					output("Voltage", value);
+					output(_("Voltage"), value);
 
 					ok++;
 				}
@@ -862,15 +841,15 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 		else if (command == SET_COUNTER)
 		{
 			if (CWusb.SetCounter(usb_id, par2, (CUSBaccess::COUNTER_IDs)par) < 0)
-				fprintf(stderr, "Failed to set counter %d\n", par);
+				fprintf(stderr, _("Failed to set counter %d\n"), par);
 
-			output(format("Counter %d set", par));
+			output(format(_("Counter %d set"), par));
 
 			ok++;
 		}
 		else
 		{
-			error_exit("Internal error! (unknown command %d)", command);
+			error_exit(false, _("Internal error! (unknown command %d)"), command);
 		}
 
 		if ((retry < retry_count - 1 || retry_count == 0) && slp > 0.0)
@@ -878,9 +857,9 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 	}
 
 	if (ok == 0)
-		fprintf(stderr, "Failed to access device %d\n", CWusb.GetSerialNumber(usb_id));
+		fprintf(stderr, _("Failed to access device %d\n"), CWusb.GetSerialNumber(usb_id));
 	else if (ok != retry_count)
-		fprintf(stderr, "Occasionally (%d/%d) failed to access device %d\n", ok, retry_count, CWusb.GetSerialNumber(usb_id));
+		fprintf(stderr, _("Occasionally (%d/%d) failed to access device %d\n"), ok, retry_count, CWusb.GetSerialNumber(usb_id));
 
 	finish_command_output();
 
@@ -1102,43 +1081,43 @@ void usage(void)
 
 	fprintf(stderr, "\n");
 
-	help_header("meta");
-	format_help("-l", NULL, "list devices");
-	format_help("-d x", NULL, "use device with serial number 'x' for the next operations");
-	format_help("-c x", NULL, "number of times to repeat the command: 0 for keep running");
-	format_help("-i x", NULL, "delay between each command invocation");
-	format_help("-t", NULL, "add a timestamp before each line (in seconds since 1970), also see -T");
-	format_help("-T x", NULL, "add a timestamp before each line, x defines the format. see \"man strftime\" for supported parameters");
-	format_help("-F", NULL, "fork into the background (become daemon)");
+	help_header(_("meta"));
+	format_help("-l", NULL, _("list devices"));
+	format_help("-d x", NULL, _("use device with serial number 'x' for the next operations"));
+	format_help("-c x", NULL, _("number of times to repeat the command: 0 for keep running"));
+	format_help("-i x", NULL, _("delay between each command invocation"));
+	format_help("-t", NULL, _("add a timestamp before each line (in seconds since 1970), also see -T"));
+	format_help("-T x", NULL, _("add a timestamp before each line, x defines the format. see \"man strftime\" for supported parameters"));
+	format_help("-F", NULL, _("fork into the background (become daemon)"));
 
-	help_header("read");
-	format_help("-rt", NULL, "read temperature");
-	format_help("-rh", NULL, "read humidity");
-	format_help("-rs x", NULL, "read switch 'x'");
-	format_help("-rp", NULL, "read external switch");
-	format_help("-rr", NULL, "shows how often the auto-reset kicked in");
-	format_help("-rm", NULL, "read states of the USB-IO16 lines");
-	format_help("-rc x", NULL, "read counter (x= 0 or 1)");
-	format_help("-ra x", NULL, "read ADC, x=0 for 5.181V, 1 for 13.621V and 2 for 24.704");
+	help_header(_("retrieve"));
+	format_help("-rt", NULL, _("read temperature"));
+	format_help("-rh", NULL, _("read humidity"));
+	format_help("-rs x", NULL, _("read switch 'x'"));
+	format_help("-rp", NULL, _("read external switch"));
+	format_help("-rr", NULL, _("shows how often the auto-reset kicked in"));
+	format_help("-rm", NULL, _("read states of the USB-IO16 lines"));
+	format_help("-rc x", NULL, _("read counter (x= 0 or 1)"));
+	format_help("-ra x", NULL, _("read ADC, x=0 for 5.181V, 1 for 13.621V and 2 for 24.704"));
 
-	help_header("do");
-	format_help("-ar", NULL, "reset device");
-	format_help("-as x y", NULL, "set switch x to y (0=off, 1=on)");
-	format_help("-ag", NULL, "start device");
-	format_help("-al x y", NULL, "set led x to y (0...15)");
-	format_help("-am x", NULL, "set the states of the USB-IO16 lines: x must be a hexvalue");
-	format_help("-ad x", NULL, "set the directions of the USB-IO16 lines (hexvalue)");
-	format_help("-ac x y", NULL, "set counter x to y (x= 0 or 1)");
-	format_help("-ai x", NULL, "set ADC channel, x is either 0 or 1");
-	format_help("-cfg x", NULL, "configure the device to be a watchdog (0), autoreset (1), switch (2) or switch ATXX (3)");
-	format_help("-w", NULL, "become daemon-process that pats the watchdog");
+	help_header(_("do"));
+	format_help("-ar", NULL, _("reset device"));
+	format_help("-as x y", NULL, _("set switch x to y (0=off, 1=on)"));
+	format_help("-ag", NULL, _("start device"));
+	format_help("-al x y", NULL, _("set led x to y (0...15)"));
+	format_help("-am x", NULL, _("set the states of the USB-IO16 lines: x must be a hexvalue"));
+	format_help("-ad x", NULL, _("set the directions of the USB-IO16 lines (hexvalue)"));
+	format_help("-ac x y", NULL, _("set counter x to y (x= 0 or 1)"));
+	format_help("-ai x", NULL, _("set ADC channel, x is either 0 or 1"));
+	format_help("-cfg x", NULL, _("configure the device to be a watchdog (0), autoreset (1), switch (2) or switch ATXX (3)"));
+	format_help("-w", NULL, _("become daemon-process that pats the watchdog"));
 
-	help_header("output");
-	format_help("-o x", NULL, "offset to add to values");
-	format_help("-O x", NULL, "output type (brief (former -b), readable (default), spreadsheet (xml spreadsheet, compatible with e.g. openoffice and microsoft excel)");
-	format_help("-f x", NULL, "send output to file (only measured data, errors are emitted to your console/terminal)");
-	format_help("-mintrig x y", NULL, "if the value read (temperature, humidity, counter, ADC) becomes less than x, then spawn process y");
-	format_help("-maxtrig x y", NULL, "if the value read (temperature, humidity, counter, ADC) becomes bigger than x, then spawn process y");
+	help_header(_("output"));
+	format_help("-o x", NULL, _("offset to add to values"));
+	format_help("-O x", NULL, _("output type (brief (former -b), readable (default), spreadsheet (xml spreadsheet, compatible with e.g. openoffice and microsoft excel)"));
+	format_help("-f x", NULL, _("send output to file (only measured data, errors are emitted to your console/terminal)"));
+	format_help("-mintrig x y", NULL, _("if the value read (temperature, humidity, counter, ADC) becomes less than x, then spawn process y"));
+	format_help("-maxtrig x y", NULL, _("if the value read (temperature, humidity, counter, ADC) becomes bigger than x, then spawn process y"));
 }
 
 int main(int argc, char *argv[])
@@ -1146,6 +1125,12 @@ int main(int argc, char *argv[])
 	int loop, device_id = -1;
 	int par = -1, par2 = -1;
 	double offset = 0.0;
+
+	determine_terminal_size();
+
+	setlocale(LC_ALL, "");
+	bindtextdomain("clewarecontrol", "/usr/share/locale");
+	textdomain("clewarecontrol");
 
 	if (argc < 2)
 	{
@@ -1166,13 +1151,13 @@ int main(int argc, char *argv[])
 		else if (strcmp(argv[loop], "-F") == 0)
 		{
 			if (daemon(-1, 0) == -1)
-				error_exit("Failed to become daemon process");
+				error_exit(true, _("Failed to become daemon process"));
 		}
 		else if (strcmp(argv[loop], "-f") == 0)
 		{
 			fh = fopen(argv[++loop], "wb");
 			if (!fh)
-				error_exit("Failed to create file %s", argv[loop]);
+				error_exit(true, _("Failed to create file %s"), argv[loop]);
 		}
 		else if (strcmp(argv[loop], "-o") == 0)
 		{
@@ -1206,7 +1191,7 @@ int main(int argc, char *argv[])
 				ot = O_SS;
 			else
 			{
-				fprintf(stderr, "Output format \"%s\" is not recognized\n", fmt);
+				fprintf(stderr, _("Output format \"%s\" is not recognized\n"), fmt);
 				usage();
 				return 1;
 			}
@@ -1354,7 +1339,7 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			fprintf(stderr, "Switch '%s' is not recognized.\n", argv[loop]);
+			fprintf(stderr, _("Switch '%s' is not recognized.\n"), argv[loop]);
 			return 1;
 		}
 	}

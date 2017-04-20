@@ -3,6 +3,7 @@ build instructions
 Required libraries:
         libhidapi-dev (Debian)
         hidapi-devel (Fedora)
+	gettext
 
 Since version 4.0 clewarecontrol uses this library to abstract the
 interfacing with the kernel. That way it may work on other OSes and new(er)

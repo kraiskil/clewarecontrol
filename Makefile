@@ -5,7 +5,7 @@ LDFLAGS+=-L/usr/local/hidapi.git/lib -lhidapi-libusb
 CXXFLAGS+=-O3 -Wall -DVERSION=\"$(VERSION)\" $(DEBUG) -I/usr/local/hidapi.git/include
 CFLAGS+=$(CXXFLAGS)
 
-OBJS=main.o USBaccessBasic.o USBaccess.o error.o
+OBJS=main.o USBaccess.o USBaccessBasic.o error.o
 TRANSLATIONS=nl.mo
 
 all: clewarecontrol

@@ -3,446 +3,329 @@
 // (C) 2001 Copyright Cleware GmbH
 // All rights reserved
 //
-// Converted to HidApi by folkert van Heusden, mail@vanheusden.com
-//
 // History:
 // 05.01.01	ws	Initial coding
 // 01.11.01	ws	Linux coding
-// 30.10.12	fvh	libusb version
+// ...
+// 30.10.12	fvh	libusb version		/* libhidapi must be installed */
+// 25.05.13 ws	new controller support
+// 15.05.14 ws	new controller needs special serial number handling
 
-#include <errno.h>
+
+#define HID_MAX_USAGES 1024		// see /usr/src/linux/drivers/usb/input/hid.h
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
-#include <string.h>
+#include <wchar.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <linux/input.h>
+#include <linux/hiddev.h>
 
 #include "USBaccessBasic.h"
 
-#define TIMEOUT 1000
-
 const int maxHID = 256 ;
-SUSBdata data[256] ;
+cwSUSBdata data[256] ;
 
-int nr = 0;
+void
+cwInitCleware() {
+	int h ;
 
-void cwInitCleware()
-{
+	for (h=0 ; h < maxHID ; h++)
+		data[h].handle = INVALID_HANDLE_VALUE ;
+		
 	if (hid_init() == -1)
 		fprintf(stderr, "Error initializing HID library\n");
-}
+	}
 
-void cwCloseCleware()
-{
-	for(int h=0; h < maxHID; h++)
-	{
-		if (data[h].handle)
-		{
-			hid_close(data[h].handle);
-
-			data[h].handle = NULL;
+void
+cwCloseCleware() {
+	int h ;
+	for (h=0 ; h < maxHID  ; h++) {
+		if (data[h].handle != INVALID_HANDLE_VALUE) {
+			hid_close(data[h].handle) ;
+			data[h].handle = INVALID_HANDLE_VALUE ;
+			}
 		}
 	}
 
-	hid_exit();
-}
-
-int	
-cwIOX(int deviceNo, int addr, int datum) {	// return datum if ok, datum=-1=Read operation
-	const int maxbufsize = 8 ;
-	int bufsize = 6 ;
-	unsigned char buf[maxbufsize] ;
-	int ok = 1 ;
-	if (deviceNo < 0 || deviceNo >= maxHID || data[deviceNo].handle == NULL)
-		return-1 ;
-
-	int devType = data[deviceNo].gadgettype ;
-	int version = data[deviceNo].gadgetVersionNo ;
-	int sixteenbit = (devType == TEMPERATURE2_DEVICE || devType == HUMIDITY1_DEVICE || devType == HUMIDITY2_DEVICE) ;
-
-	if (datum >= 0) {		// -1 = Read command
-		buf[0] = EEwrite ;
-		if (sixteenbit) {
-			buf[1] = addr >> 8 ;	// high byte 0
-			buf[2] = addr ;
-			buf[3] = datum ;
-			cwSetValue(deviceNo, buf, 4) ;
-			}
-		else if (devType == CONTACT00_DEVICE && version > 6) {
-			buf[1] = addr ;
-			buf[2] = datum ;
-			cwSetValue(deviceNo, buf, 5) ;
-			}
-		else if (devType == DISPLAY_DEVICE) {
-			buf[1] = addr ;
-			buf[2] = datum ;
-			cwSetValue(deviceNo, buf, 5) ;
-			}
-		else if (devType == WATCHDOGXP_DEVICE || devType == SWITCHX_DEVICE) {
-			buf[1] = addr ;
-			buf[2] = datum ;
-			cwSetValue(deviceNo, buf, 5) ;
-			}
-		else if (devType == ENCODER01_DEVICE) {
-			buf[1] = addr ;
-			buf[2] = datum ;
-			cwSetValue(deviceNo, buf, 6) ;
-			}
-		else if (devType == ADC0800_DEVICE) {
-			buf[1] = addr ;
-			buf[2] = datum ;
-			cwSetValue(deviceNo, buf, 3) ;
-			}
-		else if (devType == POWER_DEVICE) {
-			buf[1] = addr ;
-			buf[2] = datum ;
-			cwSetValue(deviceNo, buf, 3) ;
-			}
-		else if (devType == KEYC16_DEVICE || devType == KEYC01_DEVICE) {
-			buf[1] = addr ;
-			buf[2] = datum ;
-			cwSetValue(deviceNo, buf, 5) ;
-			}
-		else if (devType == MOUSE_DEVICE) {
-			buf[1] = addr ;
-			buf[2] = datum ;
-			cwSetValue(deviceNo, buf, 5) ;
-			}
-		else {
-			buf[1] = addr ;
-			buf[2] = datum ;
-			cwSetValue(deviceNo, buf, 3) ;
-			}
-		usleep(100*1000) ;
-		}
-
-	buf[0] = EEread ;
-	if (sixteenbit) {
-		buf[1] = 0 ;	// high byte 0
-		buf[2] = addr ;
-		buf[3] = 0 ;
-		cwSetValue(deviceNo, buf, 4) ;
-		bufsize = 7 ;
-		}
-	else if (devType == CONTACT00_DEVICE && version > 6) {
-		buf[1] = addr ;
-		buf[2] = 0 ;
-		cwSetValue(deviceNo, buf, 5) ;
-		}
-	else if (devType == DISPLAY_DEVICE) {
-		buf[1] = addr ;
-		buf[2] = 0 ;
-		cwSetValue(deviceNo, buf, 5) ;
-		}
-	else if (devType == WATCHDOGXP_DEVICE || devType == SWITCHX_DEVICE) {
-		buf[1] = addr ;
-		buf[2] = 0 ;
-		cwSetValue(deviceNo, buf, 5) ;
-		}
-	else if (devType == KEYC16_DEVICE || devType == KEYC01_DEVICE) {
-		buf[1] = addr ;
-		buf[2] = 0 ;
-		cwSetValue(deviceNo, buf, 5) ;
-		bufsize = 8 ;
-		}
-	else if (devType == MOUSE_DEVICE) {
-		buf[1] = addr ;
-		buf[2] = 0 ;
-		cwSetValue(deviceNo, buf, 5) ;
-		bufsize = 4 ;
-		}
-	else if (devType == ADC0800_DEVICE) {
-		buf[1] = addr ;
-		buf[2] = 0 ;
-		cwSetValue(deviceNo, buf, 3) ;
-		bufsize = 4 ;
-		}
-	else if (devType == POWER_DEVICE) {
-		buf[1] = addr ;
-		buf[2] = 0 ;
-		cwSetValue(deviceNo, buf, 3) ;
-		bufsize = 3 ;
-		}
-	else if (devType == ENCODER01_DEVICE) {
-		buf[1] = addr ;
-		buf[2] = 0 ;
-		cwSetValue(deviceNo, buf, 6) ;
-		}
-	else {
-		buf[1] = addr ;
-		buf[2] = 0 ;
-		cwSetValue(deviceNo, buf, 3) ;
-		}
-
-	usleep(10*1000) ;
-	ok = 40 ;
-	int Xdata = -1 ;
-	while (ok) {
-		if (cwGetValue(deviceNo, buf, bufsize)) {
-			if ((buf[0] & 0x80) == 0) {
-				if (--ok == 0) {
-					// MessageBox("GetValue still not valid", "Error") ;
-					break ;
-					}
-				else {
-					usleep(10*1000) ;
-					continue ;
-					}
-				}
-			int Xaddr = 0 ;
-			if (bufsize == 3 || devType == MOUSE_DEVICE) {
-				Xaddr = buf[1] ;
-				Xdata = buf[2] ;
-				}
-			else if (bufsize == 4) {
-				Xaddr = buf[2] ;
-				Xdata = buf[3] ;
-				}
-			else {
-				Xaddr = buf[4] ;
-				Xdata = buf[5] ;
-				}
-			if (sixteenbit) {
-				Xaddr = (Xaddr << 8) + buf[5] ;
-				Xdata = buf[6] ;
-				}
-			if (Xaddr != addr) {
-				if (--ok == 0) {
-					// MessageBox("GetValue address error", "Error") ;
-					break ;
-					}
-				else {
-					usleep(10*1000) ;
-					continue ;
-					}
-				}
-			if (datum >= 0 && Xdata != datum) {
-				if (--ok == 0) {
-					// MessageBox("Write error", "Error") ;
-					break ;
-					}
-				else {
-					usleep(10*1000) ;
-					continue ;
-					}
-				}
-			break ;
-			}
-		else {
-			if (--ok == 0) {
-				// MessageBox("GetValue failed", "Error") ;
-				break ;
-				}
-			else {
-				usleep(10*1000) ;
-				continue ;
-				}
-			}
-		break ;		// read was ok
-		}
-	if (!ok)
-		Xdata = -1 ;
-
-	return Xdata ;
-	}
 
 // returns number of found Cleware devices
-int cwOpenCleware(const char *path = NULL)
-{
-	int n = 0;
-	struct hid_device_info *devs = NULL, *cur_dev = NULL;
+int
+cwOpenCleware() {
+	int h ;
+	int handleCount = 0 ;
 
-	memset(&data, 0x00, sizeof data);
+	for (h=0 ; h < maxHID ; h++) {
+		if (data[h].handle != INVALID_HANDLE_VALUE) {
+			hid_close(data[h].handle) ;
+			data[h].handle = INVALID_HANDLE_VALUE ;
+			}
+		}
+
+	struct hid_device_info *devs = NULL, *cur_dev = NULL;
 
 	cur_dev = devs = hid_enumerate(0x0d50, 0);
 
-	while (cur_dev)
-	{
-		data[n].v = cur_dev->vendor_id;
-		data[n].p = cur_dev->product_id;
-		data[n].hidpath = strdup(cur_dev->path);
+	while (cur_dev) {		
+		int SerNum = -1 ;
+		data[handleCount].vendorID = cur_dev->vendor_id;
+		data[handleCount].productID = cur_dev->product_id;
+//		data[handleCount].hidpath = strdup(cur_dev->path);
+		data[handleCount].gadgettype = (enum USBtype_enum)data[handleCount].productID ;
+		data[handleCount].gadgetVersionNo = cur_dev->release_number; ;
+		data[handleCount].HWversion = 13 ;		// ignore old devices
+		data[handleCount].isAmpel = 0 ; 
+		data[handleCount].handle = hid_open_path(cur_dev->path) ;
+		if (data[handleCount].handle == 0)
+			printf("hid_open_path failed, path = %s\n", cur_dev->path ) ;
+		if (cur_dev->serial_number != NULL) {
+	    char buffer[256] = { 0 };
+	    wcstombs(buffer, cur_dev->serial_number, wcslen(cur_dev->serial_number));
+	    SerNum = strtol(buffer, NULL, 16) ;
+	  	}
 
-		data[n].gadgettype = (enum USBtype_enum)data[n].p;
-		data[n].gadgetVersionNo = cur_dev -> release_number;
-
-                char buffer[256] = { 0 };
-                wcstombs(buffer, cur_dev->serial_number, wcslen(cur_dev->serial_number));
-
-                data[n].SerialNumber = strtol(buffer, NULL, 16);
-		data[n].report_type = 123; // HID_REPORT_ID_FIRST; // NOT USED *FVH*
-		if (data[n].SerialNumber == 0x63813) {	// this is the next controller - get serial number directly
-			data[n].HWversion = 13 ;
-			data[n].SerialNumber = -1 ;
-		}
-		if (data[n].SerialNumber <= 0) {		// getting the Serial number failed, so get it directly!
-			data[n].handle = hid_open_path(data[n].hidpath);
-			int SerNum = 0 ;
-			int addr = 0;
+		data[handleCount].report_type = 0 ; // HID_REPORT_ID_FIRST ;
+		if (SerNum == 0x63813) {	// this is the next controller - get serial number directly
+			data[handleCount].HWversion = 13 ;
+			SerNum = -1 ;
+			}
+		if (SerNum <= 0) {		// getting the Serial number failed, so get it directly!
+			SerNum = 0 ;
+			int addr ;
 			for (addr=8 ; addr <= 14 ; addr++) {	// unicode byte 2 == 0
-				int data = cwIOX(n, addr, -1) ;
-				if (data >= '0' && data <= '9')
-					SerNum = SerNum * 16 + data - '0' ;
-				else if (data >= 'A' && data <= 'F')
-					SerNum = SerNum * 16 + data - 'A' + 10 ;
+				int datum = cwIOX(handleCount, addr, -1) ;
+				if (datum >= '0' && datum <= '9')
+					SerNum = SerNum * 16 + datum - '0' ;
+				else if (datum >= 'A' && datum <= 'F')
+					SerNum = SerNum * 16 + datum - 'A' + 10 ;
 				else {
 					SerNum = -1 ;		// failed!
 					break ;
+					}
 				}
 			}
-			data[n].SerialNumber = SerNum ;
-			hid_close(data[n].handle);
-			data[n].handle = NULL;
+			
+		data[handleCount].SerialNumber = SerNum ;
+			
+		if (data[handleCount].gadgettype == SWITCH1_DEVICE && data[handleCount].HWversion == 13 &&
+			 ! ((SerNum >= 1500000 && SerNum < 1600000) || (SerNum >= 1750000 && SerNum < 1800000)) ) {		// not for Cutter&Co.
+			int d2 = cwIOX(handleCount, 2, -1) ;
+			if (d2 & 0x20)
+				data[handleCount].isAmpel = 1 ; 
+			d2 &= 0x0f ;
+			if (d2 == 0)
+				data[handleCount].gadgettype = WATCHDOG_DEVICE ;
+			else if (d2 == 1)
+				data[handleCount].gadgettype = AUTORESET_DEVICE ;
+			}
+		data[handleCount].KB_isHumi = 0 ;
+		data[handleCount].KB_isLuminus = 0 ;
+		int kb = cw2IsIdeTec(data[handleCount].gadgettype, data[handleCount].gadgetVersionNo) ;
+		if (kb == 3) {
+			int d = cwIOX(handleCount, 0xac, -1) ;
+// Test
+		printf("sensorconfig=0x%08x\n", d) ;
+
+			data[handleCount].KB_isHumi = (d & 0x20) ? 0x80 : 0 ;
+			data[handleCount].KB_isLuminus = (d & 0x40) ;
+			data[handleCount].KB_humiTemp = 0xffffffff ;
+			}
+		cur_dev = cur_dev->next;
+		handleCount++ ;
 		}
 
-		n++;
-		cur_dev = cur_dev->next;
+	return handleCount ;
 	}
 
-	hid_free_enumeration(devs);
+// try to find disconnected devices - returns true if succeeded
+int
+cwRecover(int devNum) {
+	
 
-	return n;
-}
-
-int cwOpenDevice(int index)
-{
-	if (data[index].handle)
-		return 1;
-
-	data[index].handle = hid_open_path(data[index].hidpath);
-
-	char ok = data[index].handle != NULL;
-
-	if (!ok)
-		fprintf(stderr, "Failed to open %04x:%04x (%d)\n", data[index].v, data[index].p, data[index].SerialNumber);
-
-	return ok;
-}
-
-int cwCloseDevice(int index)
-{
-	if (data[index].handle)
-	{
-		hid_close(data[index].handle);
-
-		data[index].handle = NULL;
+	return 0 ;		// not used here
 	}
 
-	return 1;
-}
+unsigned int 
+cwKB_GetHumiTemp(int deviceNo, unsigned char *seg) {
+	unsigned int rval = 0xffffffff ;
 
-int cwRecover(int devNo)
-{
-	if (data[devNo].handle == NULL)
-		return 0;
+	if (deviceNo >= 0 && deviceNo < maxHID && data[deviceNo].handle != INVALID_HANDLE_VALUE) {
+		rval = data[deviceNo].KB_humiTemp ;
+		if (seg != NULL) {
+			seg[0] = data[deviceNo].KB_7seg[0] ;
+			seg[1] = data[deviceNo].KB_7seg[1] ;
+			seg[2] = data[deviceNo].KB_7seg[2] ;
+			seg[3] = data[deviceNo].KB_7seg[3] ;
+			}
+		}
 
-	return 1;
-}
+	return rval;
+	}
 
-void fail(const char *msg, hid_device *handle)
-{
-	const wchar_t *wstr = hid_error(handle);
+void 
+cwKB_SetHumiTemp(int deviceNo, unsigned int value, unsigned char s0, unsigned char s1, unsigned char s2, unsigned char s3) {
+	if (deviceNo >= 0 && deviceNo < maxHID && data[deviceNo].handle != INVALID_HANDLE_VALUE) {
+		data[deviceNo].KB_humiTemp = value ;
+		data[deviceNo].KB_7seg[0] = s0 ;
+		data[deviceNo].KB_7seg[1] = s1 ;
+		data[deviceNo].KB_7seg[2] = s2 ;
+		data[deviceNo].KB_7seg[3] = s3 ;
+		}
+	}
 
-	if (!wstr)
-	{
-		if (errno)
-			printf("%s: %s\n", msg, strerror(errno));
+
+int	// return true if this is a IdeTec device  (+ 0x80 if Humi, 0x40 if luminus
+cwIsIdeTec(int deviceNo) {		
+	int rval = 0 ;
+
+	if (deviceNo >= 0 && deviceNo < maxHID && data[deviceNo].handle != INVALID_HANDLE_VALUE)
+		rval = cw2IsIdeTec(data[deviceNo].gadgettype,data[deviceNo].gadgetVersionNo) ;
+	if (rval)
+		rval += data[deviceNo].KB_isHumi + data[deviceNo].KB_isLuminus ;
+
+	return rval ; 
+	}
+
+
+int
+cw2IsIdeTec(int gadgettype, int	gadgetVersionNo) {			// return true if this is a IdeTec device
+	int rval = 0 ;
+
+	rval = (gadgettype >= CONTACT00_DEVICE && gadgettype <=CONTACT15_DEVICE) ;
+	if (rval) {
+		if (gadgetVersionNo >=  0x8100 && gadgetVersionNo <=  0x8140)
+			rval = 1 ;		// Controller device, 7Seg 
+		else if (gadgetVersionNo >=  0x8180 && gadgetVersionNo <=  0x81ff)
+			rval = 2 ;		// Relais device
+		else if (gadgetVersionNo >= 0x8141 && gadgetVersionNo <= 0x817f)
+			rval = 3 ;		// Master Controller device KnoxBox V12 with 5 CY 
+		else if (gadgetVersionNo >= 0x8200 && gadgetVersionNo <= 0x82ff)
+			rval = 4 ;		// Sensor Controller device KnoxBox V12 with 5 CY 
+		else if (gadgetVersionNo >= 0x8300 && gadgetVersionNo <= 0x83ff)
+			rval = 5 ;		// Tacho Controller device KnoxBox V12 with 5 CY 
 		else
-			printf("%s\n", msg);
+			rval = 0 ;		// unknown version of IdeTec
+		}
+
+	return rval ; 
 	}
+unsigned char seqNum = 0 ;
+
+// returns 1 if ok or 0 in case of an error
+int		
+cwGetValue(int deviceNo, int UsagePage, int Usage, unsigned char *buf, int bufsize) {
+	int ok = 1 ;
+
+	if (deviceNo < 0 || deviceNo >= maxHID || data[deviceNo].handle == INVALID_HANDLE_VALUE)
+		ok = 0 ;		// out of range
+
+	unsigned char lbuf[3] = { 0x00, (seqNum++), 0x81 };
+	if (ok && hid_send_feature_report(data[deviceNo].handle, lbuf, sizeof lbuf) < 0)
+		ok = 0 ;
+
+	if (ok && hid_read(data[deviceNo].handle, buf, bufsize) < 0)
+		ok = 0 ;
+
+	return ok ;
+	}
+
+
+int 
+cwSetValue(int deviceNo, int UsagePage, int Usage, unsigned char *buf, int bufsize) {
+	int ok = 1 ;
+	const int maxP1 = 16 ;
+	unsigned char p1[maxP1] ;
+	
+	if (deviceNo < 0 || deviceNo >= maxHID || data[deviceNo].handle == INVALID_HANDLE_VALUE || bufsize >= maxP1)
+		ok = 0 ;		// out of range
+
+	if (ok) {
+		unsigned char *s=buf, *d=p1+1 ;
+		for (int i=0 ; i < bufsize ; i++)
+			*d++ = *s++ ;
+		p1[0] = 0 ;
+		
+		if (hid_write(data[deviceNo].handle, (unsigned char *)p1, bufsize + 1) < 0)
+			ok = 0 ;
+		}
+		
+	return ok ;
+	}
+
+/*
+unsigned long int
+cwGetHandle(int deviceNo) { 
+	unsigned long int rval = INVALID_HANDLE_VALUE ;
+
+	if (deviceNo >= 0 && deviceNo < maxHID)
+		rval = data[deviceNo].handle ;
+
+	return rval ; 
+	}
+*/
+
+int
+cwGetVersion(int deviceNo) { 
+	int rval ;
+
+	if (deviceNo < 0 || deviceNo >= maxHID || data[deviceNo].handle == INVALID_HANDLE_VALUE)
+		rval = -1 ;
 	else
-	{
-		int len = wcslen(wstr);
-		char* ascii = new char[len + 1];
+		rval = data[deviceNo].gadgetVersionNo ;
 
-		wcstombs(ascii, wstr, len);
-
-		printf("%s: %s\n", msg, ascii);
-
-		delete [] ascii;
+	return rval ; 
 	}
-}
 
-int cwGetValue(int deviceNo, unsigned char *buf, int bufsize)
-{
-	if (!cwOpenDevice(deviceNo))
-		return 0;
+int
+cwGetSerialNumber(int deviceNo) { 
+	int rval ;
 
-	if (data[deviceNo].handle == NULL)
-		return 0;
+	if (deviceNo < 0 || deviceNo >= maxHID || data[deviceNo].handle == INVALID_HANDLE_VALUE)
+		rval = -1 ;
+	else
+		rval = data[deviceNo].SerialNumber ;
 
-	unsigned char lbuf[3] = { 0x00, (unsigned char)(nr++), 0x81 };
-	if (hid_send_feature_report(data[deviceNo].handle, lbuf, sizeof lbuf) < 0)
-	{
-		fail("cwGetValue::hid_write() failed", data[deviceNo].handle);
+	return rval ; 
+	}
 
-                return 0;
-        }
+enum USBtype_enum
+cwGetUSBType(int deviceNo) { 
+	enum USBtype_enum rval ;
 
-	if (hid_read(data[deviceNo].handle, buf, bufsize) < 0)
-	{
-		fail("cwGetValue::hid_read() failed", data[deviceNo].handle);
+	if (deviceNo < 0 || deviceNo >= maxHID || data[deviceNo].handle == INVALID_HANDLE_VALUE)
+		rval = ILLEGAL_DEVICE ;
+	else
+		rval = data[deviceNo].gadgettype ;
 
-                return 0;
-        }
+	return rval ; 
+	}
 
-	return 1;
-}
+int	
+cwGetHWversion(int deviceNo) {			// return current
+	int rval = 0 ;
 
-int cwSetValue(int deviceNo, unsigned char *buf, int bufsize)
-{
-	if (!cwOpenDevice(deviceNo))
-		return 0;
+	if (deviceNo < 0 || deviceNo >= maxHID || data[deviceNo].handle == INVALID_HANDLE_VALUE)
+		rval = -1 ;
+	else
+		rval = data[deviceNo].HWversion ;
 
-	if (data[deviceNo].handle == NULL)
-		return 0;
+	return rval ; 
+	}
 
-	char *b = new char[bufsize + 1];
-	memcpy(b + 1, buf, bufsize);
-	b[0] = 0x00;
+int	
+cwIsAmpel(int deviceNo) {
+	int rval = 0 ;
 
-//#ifdef macos
-#if 1
-	if (hid_write(data[deviceNo].handle, (unsigned char *)b, bufsize + 1) < 0)
-#else
-	if (hid_send_feature_report(data[deviceNo].handle, (unsigned char *)b, bufsize + 1) < 0)
-#endif
-	{
-		fail("cwSetValue::hid_write() failed", data[deviceNo].handle);
+	if (deviceNo < 0 || deviceNo >= maxHID || data[deviceNo].handle == INVALID_HANDLE_VALUE)
+		rval = -1 ;
+	else
+		rval = data[deviceNo].isAmpel ;
 
-		delete [] b;
-
-                return 0;
-        }
-
-	delete [] b;
-
-	return 1;
-}
-
-hid_device * cwGetHandle(int deviceNo)
-{ 
-	if (!cwOpenDevice(deviceNo))
-		return 0;
-
-	return data[deviceNo].handle;
-}
-
-int cwGetVersion(int deviceNo)
-{
-	return data[deviceNo].gadgetVersionNo;
-}
-
-int cwGetSerialNumber(int deviceNo)
-{ 
-	return data[deviceNo].SerialNumber;
-}
-
-enum USBtype_enum cwGetUSBType(int deviceNo)
-{ 
-	return data[deviceNo].gadgettype;
-}
+	return rval ; 
+	}
 
 int
 cwValidSerNum(int SerialNumber, enum USBtype_enum devType) {
@@ -509,14 +392,224 @@ void
 cwDebugClose() { 
 	}
 
-int
-cwGetHWversion(int deviceNo) {                  // return current
-        int rval = 0 ;
+int	
+cwIOX(int deviceNo, int addr, int datum) {	// return datum if ok, datum=-1=Read operation
+	const int maxbufsize = 8 ;
+	int bufsize = 6 ;
+	unsigned char buf[maxbufsize] ;
+	int ok = 1 ;
+	if (deviceNo < 0 || deviceNo >= maxHID || data[deviceNo].handle == INVALID_HANDLE_VALUE)
+		return(-1) ;
 
-        if (deviceNo < 0 || deviceNo >= maxHID || data[deviceNo].handle == NULL)
-                rval = -1 ;
-        else
-                rval = data[deviceNo].HWversion ;
+	int devType = data[deviceNo].gadgettype ;
+	int version = data[deviceNo].gadgetVersionNo ;
+	int sixteenbit = (devType == TEMPERATURE2_DEVICE || devType == HUMIDITY1_DEVICE || devType == HUMIDITY2_DEVICE) ;
 
-        return rval ;
-        }
+	if (datum >= 0) {		// -1 = Read command
+		buf[0] = EEwrite ;
+		if (sixteenbit) {
+			buf[1] = addr >> 8 ;	// high byte 0
+			buf[2] = addr ;
+			buf[3] = datum ;
+			cwSetValue(deviceNo, 65441, 4, buf, 4) ;
+			}
+		else if (cw2IsIdeTec(devType, version) && version >= 0x8102) {
+			buf[1] = addr  >> 8 ;	// high byte
+			buf[2] = addr ;
+			buf[3] = datum ;
+			cwSetValue(deviceNo, 65441, 4, buf, 6) ;
+			}
+		else if (devType == CONTACT00_DEVICE && version > 6) {
+			buf[1] = addr ;
+			buf[2] = datum ;
+			cwSetValue(deviceNo, 65441, 4, buf, 5) ;
+			}
+		else if (devType == DISPLAY_DEVICE) {
+			buf[1] = addr ;
+			buf[2] = datum ;
+			cwSetValue(deviceNo, 65441, 4, buf, 5) ;
+			}
+		else if (devType == WATCHDOGXP_DEVICE || devType == SWITCHX_DEVICE) {
+			buf[1] = addr ;
+			buf[2] = datum ;
+			cwSetValue(deviceNo, 65441, 4, buf, 5) ;
+			}
+		else if (devType == ENCODER01_DEVICE) {
+			buf[1] = addr ;
+			buf[2] = datum ;
+			cwSetValue(deviceNo, 65441, 4, buf, 6) ;
+			}
+		else if (devType == ADC0800_DEVICE) {
+			buf[1] = addr ;
+			buf[2] = datum ;
+			cwSetValue(deviceNo, 65441, 4, buf, 3) ;
+			}
+		else if (devType == POWER_DEVICE) {
+			buf[1] = addr ;
+			buf[2] = datum ;
+			cwSetValue(deviceNo, 65441, 4, buf, 3) ;
+			}
+		else if (devType == KEYC16_DEVICE || devType == KEYC01_DEVICE) {
+			buf[1] = addr ;
+			buf[2] = datum ;
+			cwSetValue(deviceNo, 65441, 4, buf, 5) ;
+			}
+		else if (devType == MOUSE_DEVICE) {
+			buf[1] = addr ;
+			buf[2] = datum ;
+			cwSetValue(deviceNo, 65441, 4, buf, 5) ;
+			}
+		else {
+			buf[1] = addr ;
+			buf[2] = datum ;
+			cwSetValue(deviceNo, 65441, 4, buf, 3) ;
+			}
+		usleep(100*1000) ;
+		}
+
+	if (datum == -4)					// read 4 bytes in one step
+		buf[0] = EEread4 ;		
+	else
+		buf[0] = EEread ;
+		
+	if (sixteenbit) {
+		buf[1] = 0 ;	// high byte 0
+		buf[2] = addr ;
+		buf[3] = 0 ;
+		cwSetValue(deviceNo, 65441, 4, buf, 4) ;
+		bufsize = 7 ;
+		}
+	else if (cw2IsIdeTec(devType, version) && version >= 0x8102) {
+		buf[1] = ( (addr >> 8) & 0xff) ;
+		buf[2] = ( addr & 0xff ) ;
+		cwSetValue(deviceNo, 65441, 4, buf, 6) ;
+		}
+	else if (devType == CONTACT00_DEVICE && version > 6) {
+		buf[1] = addr ;
+		buf[2] = 0 ;
+		cwSetValue(deviceNo, 65441, 4, buf, 5) ;
+		}
+	else if (devType == DISPLAY_DEVICE) {
+		buf[1] = addr ;
+		buf[2] = 0 ;
+		cwSetValue(deviceNo, 65441, 4, buf, 5) ;
+		}
+	else if (devType == WATCHDOGXP_DEVICE || devType == SWITCHX_DEVICE) {
+		buf[1] = addr ;
+		buf[2] = 0 ;
+		cwSetValue(deviceNo, 65441, 4, buf, 5) ;
+		}
+	else if (devType == KEYC16_DEVICE || devType == KEYC01_DEVICE) {
+		buf[1] = addr ;
+		buf[2] = 0 ;
+		cwSetValue(deviceNo, 65441, 4, buf, 5) ;
+		bufsize = 8 ;
+		}
+	else if (devType == MOUSE_DEVICE) {
+		buf[1] = addr ;
+		buf[2] = 0 ;
+		cwSetValue(deviceNo, 65441, 4, buf, 5) ;
+		bufsize = 4 ;
+		}
+	else if (devType == ADC0800_DEVICE) {
+		buf[1] = addr ;
+		buf[2] = 0 ;
+		cwSetValue(deviceNo, 65441, 4, buf, 3) ;
+		bufsize = 4 ;
+		}
+	else if (devType == POWER_DEVICE) {
+		buf[1] = addr ;
+		buf[2] = 0 ;
+		cwSetValue(deviceNo, 65441, 4, buf, 3) ;
+		bufsize = 3 ;
+		}
+	else if (devType == ENCODER01_DEVICE) {
+		buf[1] = addr ;
+		buf[2] = 0 ;
+		cwSetValue(deviceNo, 65441, 4, buf, 6) ;
+		}
+	else {
+		buf[1] = addr ;
+		buf[2] = 0 ;
+		cwSetValue(deviceNo, 65441, 4, buf, 3) ;
+		}
+
+	usleep(10*1000) ;
+	ok = 40 ;
+	int Xdata = -1 ;
+	while (ok) {
+		if (cwGetValue(deviceNo, 65441, 3, buf, bufsize)) {
+			unsigned char mask = 0x80 ;
+			if (cw2IsIdeTec(devType, version) && version >= 0x8102)
+				mask = 0x40 ;
+			if ((buf[0] & mask) == 0) {
+				if (--ok == 0) {
+					// MessageBox("GetValue still not valid", "Error") ;
+					break ;
+					}
+				else {
+					usleep(10*1000) ;
+					continue ;
+					}
+				}
+			int Xaddr = 0 ;
+			if (bufsize == 3 || devType == MOUSE_DEVICE) {
+				Xaddr = buf[1] ;
+				Xdata = buf[2] ;
+				}
+			else if (bufsize == 4) {
+				Xaddr = buf[2] ;
+				Xdata = buf[3] ;
+				}
+			else if (datum == -4) {	// read 4 bytes
+				Xaddr = buf[5] ;
+				Xaddr += (addr & 0xff00) ;			// don't care about the upper 8 bits
+				Xdata = (buf[1] << 24) + (buf[2] << 16) + (buf[3] << 8) + buf[4] ;
+				}
+			else {
+				Xaddr = buf[4] ;
+				Xdata = buf[5] ;
+				if (cw2IsIdeTec(devType, version) && version >= 0x8102) {
+					Xaddr += (buf[3] << 8) ;
+					}
+				}
+			if (Xaddr != addr) {
+				if (--ok == 0) {
+					// MessageBox("GetValue address error", "Error") ;
+					break ;
+					}
+				else {
+					usleep(10*1000) ;
+					continue ;
+					}
+				}
+			if (datum >= 0 && Xdata != datum) {
+				if (--ok == 0) {
+					// MessageBox("Write error", "Error") ;
+					break ;
+					}
+				else {
+					usleep(10*1000) ;
+					continue ;
+					}
+				}
+			break ;
+			}
+		else {
+			if (--ok == 0) {
+				// MessageBox("GetValue failed", "Error") ;
+				break ;
+				}
+			else {
+				usleep(10*1000) ;
+				continue ;
+				}
+			}
+		break ;		// read was ok
+		}
+
+	if (!ok)
+		Xdata = -1 ;
+
+	return Xdata ;
+	}

@@ -6,82 +6,80 @@
 // History:
 // 05.01.01	ws	Initial coding
 // 17.07.01	ws	cleanup interface
-// 03.11.02	ws	small changes for Linux
+// 12.05.06	ws	lift to Version 3.3.0
+// 25.05.13	ws	support for new controller devices
+// 08.07.14	ws	support for isAmpel
+// 06.07.17	ws	support for knoxBox
+// 28.02.18	ws	use USBaccessDevTypes.h
 
+
+// The following ifdef block is the standard way of creating macros which make exporting 
+// from a DLL simpler. All files within this DLL are compiled with the USBACCESS_EXPORTS
+// symbol defined on the command line. this symbol should not be defined on any project
+// that uses this DLL. This way any other project whose source files include this file see 
+// USBACCESS_API functions as being imported from a DLL, wheras this DLL sees symbols
+// defined with this macro as being exported.
+ 
 
 #ifndef __USBACCESSBASIC_H__
 #define __USBACCESSBASIC_H__
 
-#ifdef __APPLE__
-#include "mac-hidapi/hidapi.h"
-#else
+#define CLEWARE_DEBUG 1
+
+#define INVALID_HANDLE_VALUE NULL
+
 #include <hidapi/hidapi.h>
-#endif
 
-typedef hid_device * HANDLE;
+enum USBtype_enum {	
+#include "USBaccessDevTypes.h"	
+} ;
 
-enum USBtype_enum {	ILLEGAL_DEVICE=0,
-						LED_DEVICE=0x01,
-						POWER_DEVICE=0x02,
-						DISPLAY_DEVICE=0x03,
-						WATCHDOG_DEVICE=0x05,
-						AUTORESET_DEVICE=0x06,
-						WATCHDOGXP_DEVICE=0x07,
-						SWITCH1_DEVICE=0x08,
-						SWITCH2_DEVICE=0x09, SWITCH3_DEVICE=0x0a, SWITCH4_DEVICE=0x0b,
-						SWITCH5_DEVICE=0x0c, SWITCH6_DEVICE=0x0d, SWITCH7_DEVICE=0x0e, SWITCH8_DEVICE=0x0f,
-						TEMPERATURE_DEVICE=0x10,
-						TEMPERATURE2_DEVICE=0x11,
-						TEMPERATURE5_DEVICE=0x15, 
-						HUMIDITY1_DEVICE=0x20,HUMIDITY2_DEVICE=0x21,
-						SWITCHX_DEVICE=0x28,		// new switch 3,4,8
-						// CONTACT1_DEVICE=0x30 
-						CONTACT00_DEVICE=0x30, CONTACT01_DEVICE=0x31, CONTACT02_DEVICE=0x32, CONTACT03_DEVICE=0x33, 
-						CONTACT04_DEVICE=0x34, CONTACT05_DEVICE=0x35, CONTACT06_DEVICE=0x36, CONTACT07_DEVICE=0x37, 
-						CONTACT08_DEVICE=0x38, CONTACT09_DEVICE=0x39, CONTACT10_DEVICE=0x3a, CONTACT11_DEVICE=0x3b, 
-						CONTACT12_DEVICE=0x3c, CONTACT13_DEVICE=0x3d, CONTACT14_DEVICE=0x3e, CONTACT15_DEVICE=0x3f, 
-						F4_DEVICE=0x40, 
-						KEYC01_DEVICE=0x41, KEYC16_DEVICE=0x42,MOUSE_DEVICE=0x43,
-						ADC0800_DEVICE=0x50, ADC0801_DEVICE=0x51, ADC0802_DEVICE=0x52, ADC0803_DEVICE=0x53, 
-						COUNTER00_DEVICE=0x60, 
-						ENCODER01_DEVICE=0x80,
-						BUTTON_NODEVICE=0x1000
-						} ;
 enum USBactions {		LEDs=0, EEwrite=1, EEread=2, Reset=3, KeepCalm=4, GetInfo=5, 
 						StartMeasuring=6,		// USB-Humidity
 						Configure=7,			// USB-IO16-V10, USB-Counter-V05
 						Display=8,				// USB/Display
 						RunPoint=10,			// USB-Encoder
+						EEread4=13,				// 613
 						Programm=15				// Transfer new Firmware (internal use only)
 						} ;
 
+// 03.11.02	ws	small changes for Linux
 typedef struct {
-	unsigned short v, p;
+
+	unsigned short vendorID, productID ;
 	hid_device *handle;
-	int	gadgetVersionNo;
-	enum USBtype_enum	gadgettype;
-	int	SerialNumber;
-	int	report_type;
-	int	HWversion ;
-	char	*hidpath;
-	} SUSBdata;
+//	char	*hidpath;
+	unsigned long int	gadgetVersionNo ;
+	enum USBtype_enum	gadgettype ;
+	int					SerialNumber ;
+	int					report_type ;
+	int					HWversion ;
+	int					isAmpel ;
+	unsigned char				KB_isHumi, KB_isLuminus ;
+	unsigned int				KB_humiTemp ;
+	unsigned char				KB_7seg[4] ;
+	} cwSUSBdata ;
 
-extern int nr;
 
-void cwInitCleware();
-int	cwOpenCleware(const char *path);	// returns number of found Cleware devices
-int cwRecover(int devNo);
-void cwCloseCleware();
-int	cwGetValue(int deviceNo, unsigned char *buf, int bufsize);
-int	cwSetValue(int deviceNo, unsigned char *buf, int bufsize);
-hid_device * cwGetHandle(int deviceNo);
-int	cwGetVersion(int deviceNo);
-int	cwGetSerialNumber(int deviceNo);
-enum USBtype_enum	cwGetUSBType(int deviceNo);
+void 						cwInitCleware() ;
+int							cwOpenCleware() ;	// returns number of found Cleware devices
+void						cwCloseCleware() ;
+int							cwGetValue(int deviceNo, int UsagePage, int Usage, unsigned char *buf, int bufsize) ;
+int							cwSetValue(int deviceNo, int UsagePage, int Usage, unsigned char *buf, int bufsize) ;
+// unsigned long int 	cwGetHandle(int deviceNo) ;
+int							cwGetVersion(int deviceNo) ;
+enum USBtype_enum		cwGetUSBType(int deviceNo) ;
+int							cwGetSerialNumber(int deviceNo) ;
+int							cwRecover(int devNum) ;		// try to find disconnected devices
 int							cwValidSerNum(int SerialNumber, enum USBtype_enum devType) ;
+int							cwGetHWversion(int deviceNo) ;			// return current
+int							cwIsAmpel(int deviceNo) ;
+int							cwIOX(int deviceNo, int addr, int data) ;
 void						cwDebugWrite(char *s) ;
 void						cwDebugClose() ;
-int cwGetHWversion(int deviceNo);
-int							cwIOX(int deviceNo, int addr, int data) ;
+int							cwIsIdeTec(int deviceNo) ;		// return true if device is a IdeTec special device
+int							cw2IsIdeTec(int gadgettype, int	gadgetVersionNo) ;	// return true if this is a IdeTec device
+unsigned int		cwKB_GetHumiTemp(int deviceNo, unsigned char *seg) ;
+void						cwKB_SetHumiTemp(int deviceNo, unsigned int value, unsigned char s0, unsigned char s1, unsigned char s2, unsigned char s3) ;
 
 #endif // __USBACCESS_H__

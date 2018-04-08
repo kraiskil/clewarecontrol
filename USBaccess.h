@@ -15,8 +15,13 @@
 // 21.01.2004	ws	fixed some humidity problems 
 //		   2004	ws	added contact + io16
 // 05.02.2005	ws	added ADC08-Support 
-// 25.05.13   ws	new controller support
+// 25.05.2013   ws	new controller support
 // 15.05.2014	ws	4.3.0	added new controller support
+// 08.07.2014	ws	4.3.1	added new controller support
+// 08.08.2014	ws	4.3.2	added new IO16 support
+// 02.09.2014	ws	4.3.3	fixed an old error when switching channel 8 of a Contact device using SetSwitch
+// 05.07.2017	ws	4.5.5	Added support for KnoxBox V12, fixed small multiread bug
+// 28.02.2018	ws	5.1.0	use USBaccessDevTypes.h,  added new Counter device to measure frequency
 
 
 
@@ -31,22 +36,25 @@
 #ifndef __USBACCESS_H__
 #define __USBACCESS_H__
 
-#ifdef __APPLE__
-#include "mac-hidapi/hidapi.h"
+typedef int HANDLE ;
+
+#ifdef USBACCESS_EXPORTS
+#define USBACCESS_API __declspec(dllexport)
 #else
-#include <hidapi/hidapi.h>
+#define USBACCESS_API __declspec(dllimport)
 #endif
 
-typedef hid_device * HANDLE;
-
-const int USBaccessVersion = 330 ;
+const int USBaccessVersion = 510 ;
 
 class CUSBaccess {
 	public:
 		enum USBactions {		LEDs=0, EEwrite=1, EEread=2, Reset=3, KeepCalm=4, GetInfo=5, 
 								StartMeasuring=6,		// USB-Humidity
 								Configure=7,			// USB-IO16-V10, USB-Counter-V05
-								RunPoint=10				// USB-Encoder
+								RunPoint=10,			// USB-Encoder
+								ContactWrite=11,	// 613er IO16
+								ContactRead=12, 	// 613er IO16
+								EEread4=13				// 613
 								} ;
 		enum USBInfoType {		OnlineTime=1, OnlineCount=2, ManualTime=3, ManualCount=4 } ;
 		enum LED_IDs {			LED_0=0, LED_1=1, LED_2=2, LED_3=3 } ;
@@ -56,46 +64,16 @@ class CUSBaccess {
 								SWITCH_8=0x18, SWITCH_9=0x19, SWITCH_10=0x1a, SWITCH_11=0x1b,
 								SWITCH_12=0x1c, SWITCH_13=0x1d, SWITCH_14=0x1e, SWITCH_15=0x1f
 								} ;
-		enum USBtype_enum {		ILLEGAL_DEVICE=0,
-								LED_DEVICE=0x01,
-								POWER_DEVICE=0x02,
-								WATCHDOG_DEVICE=0x05,
-								AUTORESET_DEVICE=0x06,
-								WATCHDOGXP_DEVICE=0x07,
-								SWITCH1_DEVICE=0x08,
-								SWITCH2_DEVICE=0x09, SWITCH3_DEVICE=0x0a, SWITCH4_DEVICE=0x0b,
-								SWITCH5_DEVICE=0x0c, SWITCH6_DEVICE=0x0d, SWITCH7_DEVICE=0x0e, SWITCH8_DEVICE=0x0f,
-								TEMPERATURE_DEVICE=0x10, 
-								TEMPERATURE2_DEVICE=0x11,
-								TEMPERATURE5_DEVICE=0x15, 
-								HUMIDITY1_DEVICE=0x20,
-								SWITCHX_DEVICE=0x28,		// new switch 3,4,8
-								CONTACT00_DEVICE=0x30, CONTACT01_DEVICE=0x31, CONTACT02_DEVICE=0x32, CONTACT03_DEVICE=0x33, 
-								CONTACT04_DEVICE=0x34, CONTACT05_DEVICE=0x35, CONTACT06_DEVICE=0x36, CONTACT07_DEVICE=0x37, 
-								CONTACT08_DEVICE=0x38, CONTACT09_DEVICE=0x39, CONTACT10_DEVICE=0x3a, CONTACT11_DEVICE=0x3b, 
-								CONTACT12_DEVICE=0x3c, CONTACT13_DEVICE=0x3d, CONTACT14_DEVICE=0x3e, CONTACT15_DEVICE=0x3f, 
-								F4_DEVICE=0x40, 
-								KEYC01_DEVICE=0x41, KEYC16_DEVICE=0x42,
-								ADC0800_DEVICE=0x50, ADC0801_DEVICE=0x51, ADC0802_DEVICE=0x52, ADC0803_DEVICE=0x53, 
-								COUNTER00_DEVICE=0x60, 
-								ENCODER01_DEVICE=0x80,
-								BUTTON_NODEVICE=0x1000
-								} ;
-	private:
-		class CUSBaccessBasic *	X	;	// avoid export of internal USB variables
-
+		enum USBtype_enum {	
+#include "USBaccessDevTypes.h"	
+		} ;
 	public:
 		CUSBaccess() ;
 		virtual ~CUSBaccess() ;		// maybe used as base class
 
-		virtual double GetTemperatureSimple(int deviceNo);
-                virtual double GetHumiditySimple(int deviceNo);
-                virtual long int GetMultiSwitchSimple(int deviceNo);
-
 		virtual int			OpenCleware() ;			// returns number of found Cleware devices
 		virtual int			CloseCleware() ;		// close all Cleware devices
 		virtual int			Recover(int devNum) ;	// try to find disconnected devices, returns true if succeeded
-		virtual HANDLE		GetHandle(int deviceNo) ;
 		virtual int			GetValue(int deviceNo, unsigned char *buf, int bufsize) ;
 		virtual int			SetValue(int deviceNo, unsigned char *buf, int bufsize) ;
 		virtual int			SetLED(int deviceNo, enum LED_IDs Led, int value) ;	// value: 0=off 7=medium 15=highlight
@@ -104,7 +82,11 @@ class CUSBaccess {
 		virtual int			GetSeqSwitch(int deviceNo, enum SWITCH_IDs Switch, int seqNum) ;		//	On: 0=off, 1=on, -1=error
 		virtual int			GetSwitchConfig(int deviceNo, int *switchCount, int *buttonAvailable) ;
 		virtual int			GetTemperature(int deviceNo, double *Temperature, int *timeID) ;
+		virtual float		GetTemperature(int deviceNo) ;
 		virtual int			GetHumidity(int deviceNo, double *Humidity, int *timeID) ;
+		virtual float		GetHumidity(int deviceNo) ;
+		virtual int			SelectADC(int deviceNo, int subDevice) ;
+		virtual float		GetADC(int deviceNo, int sequenceNumber, int subDevice) ;
 		virtual int			ResetDevice(int deviceNo) ;
 		virtual int			StartDevice(int deviceNo) ;	
 		virtual int			CalmWatchdog(int deviceNo, int minutes, int minutes2restart) ;
@@ -123,7 +105,10 @@ class CUSBaccess {
 		virtual int			SetCounter(int deviceNo, int counter, enum COUNTER_IDs counterID) ;	//  -1=error, COUNTER_IDs ununsed until now
 		virtual int			SyncDevice(int deviceNo, unsigned long int mask) ;
 		virtual int			GetHWversion(int deviceNo) ;	// return HWversion (0 for pre 2014 designed devices, 13 for new devices)
+		virtual int			IsAmpel(int deviceNo) ;	// return true if this is a traffic light device
 		virtual int			IOX(int deviceNo, int addr, int data) ;		// for internal use only, wrong usage may destroy device	
+		virtual int			IsIdeTec(int deviceNo) ;			// return true if watchdog inverted
+		virtual int			GetFrequency(int deviceNo, unsigned long int *counter, int subDevice) ;
 		virtual void		DebugWrite(char *s) ;
 		virtual void		DebugWrite(char *f, int a1) ;
 		virtual void		DebugWrite(char *f, int a1, int a2) ;

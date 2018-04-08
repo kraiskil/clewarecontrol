@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <time.h>
 #include "USBaccess.h"
 #include "USBaccessBasic.h"
 
@@ -24,7 +25,7 @@ CUSBaccess::~CUSBaccess() {
 // returns number of found Cleware devices
 int
 CUSBaccess::OpenCleware() {
-	int rval = cwOpenCleware(NULL) ;
+	int rval = cwOpenCleware() ;
 
 	return rval ;
 	}
@@ -44,11 +45,6 @@ CUSBaccess::CloseCleware() {
 	cwCloseCleware() ;
 
 	return rval ;
-	}
-
-HANDLE
-CUSBaccess::GetHandle(int deviceNo) { 
-	return cwGetHandle(deviceNo) ; 
 	}
 
 int 
@@ -98,7 +94,7 @@ CUSBaccess::GetSerialNumber(int deviceNo) {
 // returns 1 if ok or 0 in case of an error
 int		
 CUSBaccess::GetValue(int deviceNo, unsigned char *buf, int bufsize) {
-	int rval = cwGetValue(deviceNo, buf, bufsize) ;
+	int rval = cwGetValue(deviceNo, 65441, 3, buf, bufsize) ;
 
 	return rval ;
 	}
@@ -106,7 +102,7 @@ CUSBaccess::GetValue(int deviceNo, unsigned char *buf, int bufsize) {
 
 int 
 CUSBaccess::SetValue(int deviceNo, unsigned char *buf, int bufsize) {
-	int rval = cwSetValue(deviceNo, buf, bufsize) ;
+	int rval = cwSetValue(deviceNo, 65441, 4, buf, bufsize) ;
 	
 	return rval ;
 	}
@@ -187,38 +183,7 @@ CUSBaccess::SetSwitch(int deviceNo, enum SWITCH_IDs Switch, int On) {
 				}
 			}
 		}
-	else if (devType == SWITCHX_DEVICE || devType == WATCHDOGXP_DEVICE || (devType == CONTACT00_DEVICE && version > 6)) {		// 5 bytes to send
-		int mask = 1 << (Switch - SWITCH_0) ;		// setup mask
-		int data = 0 ;
-		if (On)
-			data = mask ;
-// LINUX sign bit problem
-		s[0] = 3 << 4 ;
-		if (data & 0x8000)
-			s[0] |= 0x08 ;
-		if (data & 0x80)
-			s[0] |= 0x04 ;
-		if (mask & 0x8000)
-			s[0] |= 0x02 ;
-		if (mask & 0x80)
-			s[0] |= 0x01 ;
-		s[1] = (unsigned char)(data >> 8)  & 0x7f ;
-		s[2] = (unsigned char)(data & 0xff) & 0x7f  ;
-		s[3] = (unsigned char)(mask >> 8)  & 0x7f ;
-		s[4] = (unsigned char)(mask & 0xff) & 0x7f  ;
-/*	old code, may cause Linux sign problem
-		if (GetHWversion(deviceNo) == 0)
-		s[0] = 3 ;
-		else
-			s[0] = ContactWrite ;
-		s[1] = data >> 8 ;
-		s[2] = data & 0xff ;
-		s[3] = mask >> 8 ;
-		s[4] = mask & 0xff ;
-*/
-		rval = SetValue(deviceNo, s, 5) ;
-		}
-	else if (devType == ENCODER01_DEVICE) {
+	else if (devType == ENCODER01_DEVICE|| cwIsIdeTec(deviceNo)) {
 		s[0] = 0 ;
 		s[1] = Switch ;
 		s[2] = On ;
@@ -226,6 +191,21 @@ CUSBaccess::SetSwitch(int deviceNo, enum SWITCH_IDs Switch, int On) {
 		s[4] = 0 ;
 		s[5] = 0 ;
 		rval = SetValue(deviceNo, s, 6) ;
+		}
+	else if (devType == SWITCHX_DEVICE || devType == WATCHDOGXP_DEVICE || (devType == CONTACT00_DEVICE && version > 6)) {		// 5 bytes to send
+		int mask = 1 << (Switch - SWITCH_0) ;		// setup mask
+		int data = 0 ;
+		if (On)
+			data = mask ;
+		if (GetHWversion(deviceNo) == 0)		// old IO16
+			s[0] = 3 ;
+		else									// new 613 device
+			s[0] = ContactWrite ;
+		s[1] = data >> 8 ;
+		s[2] = data & 0xff ;
+		s[3] = mask >> 8 ;
+		s[4] = mask & 0xff ;
+		rval = SetValue(deviceNo, s, 5) ;
 		}
 	else if (devType == COUNTER00_DEVICE) {
 		s[0] = 0 ;
@@ -288,7 +268,8 @@ CUSBaccess::GetSwitchConfig(int deviceNo, int *switchCount, int *buttonAvailable
 		*switchCount = 1 ;
 		*buttonAvailable = 0 ;
 		if (version >= 10) {	
-			if (ok = GetValue(deviceNo, buf, bufSize) && (buf[0] & 0x80)) {
+			ok = (GetValue(deviceNo, buf, bufSize) && (buf[0] & 0x80) ) ;
+			if (ok) {
 				*switchCount = 1 ;
 				if (buf[0] & 0x02)
 					*switchCount = 2 ;
@@ -374,7 +355,8 @@ CUSBaccess::GetSwitch(int deviceNo, enum SWITCH_IDs Switch) {
 				}
 			}
 
-		sequenceNumber = (++sequenceNumber) & 0x1f ;
+		++sequenceNumber ;
+		sequenceNumber &= 0x1f ;
 		}
 
 	return ok ;
@@ -422,16 +404,6 @@ CUSBaccess::GetSeqSwitch(int deviceNo, enum SWITCH_IDs Switch, int seqNumber) {
 	return ok ;
 	}
 
-long int CUSBaccess::GetMultiSwitchSimple(int deviceNo)
-{
-        static int seqNumber = 0;
-        unsigned long int mask = -1, value = -1;
-
-        GetMultiSwitch(deviceNo, &mask, &value, seqNumber++);
-
-        return value;
-}
-
 int		// rval seqNum = ok, -1 = error	 
 CUSBaccess::GetMultiSwitch(int deviceNo, unsigned long int *mask, unsigned long int *value, int seqNumber) {
 	unsigned char buf[8] = { 0, 0, 0, 0, 0, 0, 0, 0 } ;
@@ -442,12 +414,38 @@ CUSBaccess::GetMultiSwitch(int deviceNo, unsigned long int *mask, unsigned long 
 	USBtype_enum devType = (USBtype_enum)cwGetUSBType(deviceNo) ;
 	int version = cwGetVersion(deviceNo) ;
 
+	if (devType == SWITCH1_DEVICE) {
+		int rval = 0 ;
+		ok = GetSwitch(deviceNo, SWITCH_0) ;
+		if (ok >= 0) {
+			rval = ok ;
+			ok = GetSwitch(deviceNo, SWITCH_1) ;
+			}
+		if (ok >= 0) {
+			rval |= (ok << 1) ;
+			ok = GetSwitch(deviceNo, SWITCH_2) ;
+			}
+		if (ok >= 0) {
+			rval |= (ok << 2) ;
+			ok = GetSwitch(deviceNo, SWITCH_3) ;
+			}
+		if (ok >= 0) {
+			*value = rval | (ok << 3) ;
+			ok = seqNumber ;
+			}
+
+		return ok ;
+		}
+
 	if (devType == KEYC16_DEVICE) 
 		bufSize = 8 ;
 	else if (devType == CONTACT00_DEVICE || devType == KEYC01_DEVICE || devType == SWITCHX_DEVICE || devType == WATCHDOGXP_DEVICE) {
 		if (version < 5)
 			return -1 ;
 		bufSize = 6 ;
+		}
+	else if (devType == MOUSE_DEVICE) {
+		bufSize = 4 ;
 		}
 	else
 		return -1 ;
@@ -472,7 +470,9 @@ CUSBaccess::GetMultiSwitch(int deviceNo, unsigned long int *mask, unsigned long 
 
 		for (int securityCnt=50 ; seqNumber != 0 && securityCnt > 0 ; securityCnt--) {
 			if (GetValue(deviceNo, buf, bufSize)) {
-				if (mask != 0)
+				if ( (buf[0] & 0x80) == 0)		// this bit indicate valid IO data
+					continue ;
+				if (mask != 0 && !IsIdeTec(deviceNo))
 					*mask =  (buf[2] << 8) + buf[3] ;
 				unsigned long int v = (buf[4] << 8) + buf[5] ;
 				if (version < 7 && devType != KEYC16_DEVICE && devType != KEYC01_DEVICE)
@@ -504,6 +504,18 @@ CUSBaccess::SetMultiSwitch(int deviceNo, unsigned long int value) {
 	int ok = -1 ;
 	USBtype_enum devType = (USBtype_enum)cwGetUSBType(deviceNo) ;
 
+	if (devType == SWITCH1_DEVICE) {
+		ok = SetSwitch(deviceNo, SWITCH_0, value & 1) ;
+		if (ok)
+			ok = SetSwitch(deviceNo, SWITCH_1, value & 2) ;
+		if (ok)
+			ok = SetSwitch(deviceNo, SWITCH_2, value & 4) ;
+		if (ok)
+			ok = SetSwitch(deviceNo, SWITCH_3, value & 8) ;
+
+		return ok ;
+		}
+
 	if (devType != CONTACT00_DEVICE && devType != SWITCHX_DEVICE && devType != WATCHDOGXP_DEVICE)
 		return -1 ;
 
@@ -511,24 +523,17 @@ CUSBaccess::SetMultiSwitch(int deviceNo, unsigned long int value) {
 	if (version < 5)
 		return -1 ;
 
-/* orginal
-	buf[0] = 3 ;
+	if (devType == CONTACT00_DEVICE && version >= 32 && version < 48)
+		return -1 ;			// this device misses 9555
+
+	if (GetHWversion(deviceNo) == 0)		// old IO16
+		buf[0] = 3 ;
+	else									// new 613 device
+		buf[0] = ContactWrite ;
 	buf[1] = (unsigned char)(value >> 8) ;
 	buf[2] = (unsigned char)(value & 0xff) ;
 	buf[3] = 0xff ;
 	buf[4] = 0xff ;
-*/
-// LINUX sign bit problem
-	buf[0] = 3 << 4 ;
-	if (value & 0x8000)
-		buf[0] |= 0x08 ;
-	if (value & 0x80)
-		buf[0] |= 0x04 ;
-	buf[0] |= 3 ;	// mask bits
-	buf[1] = (unsigned char)(value >> 8)  & 0x7f ;
-	buf[2] = (unsigned char)(value & 0xff) & 0x7f  ;
-	buf[3] = 0x7f ;
-	buf[4] = 0x7f ;
 
 	if (SetValue(deviceNo, buf, version > 6 ? 5 : 3))
 		ok = 0 ;
@@ -543,6 +548,9 @@ CUSBaccess::SetMultiConfig(int deviceNo, unsigned long int directions) {	// 1=in
 	int ok = -1 ;
 	USBtype_enum devType = (USBtype_enum)cwGetUSBType(deviceNo) ;
 
+	if (devType == SWITCH1_DEVICE)
+		return 0 ;		// don't care
+
 	if (devType != CONTACT00_DEVICE && devType != SWITCHX_DEVICE && devType != WATCHDOGXP_DEVICE) 
 		return -1 ;
 
@@ -550,7 +558,6 @@ CUSBaccess::SetMultiConfig(int deviceNo, unsigned long int directions) {	// 1=in
 	if (version < 5)
 		return -1 ;
 
-/* orginal
 	if (version < 10)
 		buf[0] = KeepCalm ;			// dirty old code
 	else
@@ -559,41 +566,24 @@ CUSBaccess::SetMultiConfig(int deviceNo, unsigned long int directions) {	// 1=in
 	buf[2] = (unsigned char)(directions & 0xff) ;
 	buf[3] = 0 ;
 	buf[4] = 0 ;
-*/
-// LINUX sign bit problem
-	if (version < 10)
-		buf[0] = 4 << 4 ;		// dirty old code
-	else
-		buf[0] = 7 << 4 ;
-	if (directions & 0x8000)
-		buf[0] |= 0x08 ;
-	if (directions & 0x80)
-		buf[0] |= 0x04 ;
-	buf[1] = (unsigned char)(directions >> 8)  & 0x7f ;
-	buf[2] = (unsigned char)(directions & 0xff) & 0x7f  ;
-	buf[3] = 0 ;
-	buf[4] = 0 ;
-
 	if (SetValue(deviceNo, buf, version > 6 ? 5 : 3))
 		ok = 0 ;
 
 	return ok ;
 	}
 
+
 int		// // return value of counter (0 or 1 for USB-IO16) or -1 in case of an error
 CUSBaccess::GetCounter(int deviceNo, enum COUNTER_IDs counterID) {
 	const int bufSize = 6 ;
 	unsigned char buf[bufSize] ;
 	int rval = -1 ;
-	int automatic = 0 ;
 	static int sequenceNumber = 1 ;
 	int sendlen = bufSize ;
 	int isIO16 = false ;
 
-// original
-//	sequenceNumber = (++sequenceNumber) & 0xff ;
-	if (++sequenceNumber > 0x7f)	// LINUX sign bit problem
-		sequenceNumber = 1 ;
+	++sequenceNumber ;
+	sequenceNumber &= 0xff ;
 
 	USBtype_enum devType = (USBtype_enum)cwGetUSBType(deviceNo) ;
 	int version = cwGetVersion(deviceNo) ;
@@ -605,6 +595,8 @@ CUSBaccess::GetCounter(int deviceNo, enum COUNTER_IDs counterID) {
 		}
 	else if (devType == COUNTER00_DEVICE) 
 		sendlen = 3 ;
+	else if (devType == CONTACTTIMER00_DEVICE)
+		sendlen = 5 ;
 	else
 		return -1 ;
 
@@ -641,7 +633,7 @@ CUSBaccess::GetCounter(int deviceNo, enum COUNTER_IDs counterID) {
 						rval = (buf[4] << 8) + buf[5] ;
 					}
 				break ;
-			//	Sleep(50) ;				don't sleep - we just killing the USB fifo
+				//	Sleep(50) ;				don't sleep - we just killing the USB fifo
 				}
 			else {
 				securityCnt /= 10 ;		// don't wait too long if GetValue failed
@@ -655,15 +647,50 @@ CUSBaccess::GetCounter(int deviceNo, enum COUNTER_IDs counterID) {
 	return rval ;
 	}
 
+int		// // return value of counter (0 or 1 for USB-IO16) or -1 in case of an error
+CUSBaccess::GetFrequency(int deviceNo, unsigned long int *counter, int subDevice) {
+	const int bufSize = 6 ;
+	unsigned char buf[bufSize] ;
+	int rval = -1 ;
+
+	USBtype_enum devType = (USBtype_enum)cwGetUSBType(deviceNo) ;
+	int version = cwGetVersion(deviceNo) ;
+
+	if (devType != COUNTER00_DEVICE || version < 0x101) 
+		return -1 ;
+
+	for (int securityCnt=5 ; securityCnt > 0 ; securityCnt--) {
+		if (GetValue(deviceNo, buf, bufSize)) {
+			if ( (buf[0] & 0xc0) != 0xc0) {			// 0xc0 indicate frequency is valid
+				Sleep(10) ;
+				continue ;
+				}
+			int sub = (buf[0] >> 4) & 0x03 ;
+			if (sub != subDevice) {			// wrong channel
+				Sleep(10) ;
+				continue ;
+				}
+			*counter = ((buf[0] & 0x0f) << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3] ;
+			rval = (buf[4] << 8) + buf[5] ;
+			break ;
+			}
+		else {
+			Sleep(20) ;
+			}
+		}
+
+	return rval ;
+	}
+
+
 int
 CUSBaccess::SetCounter(int deviceNo, int counter, enum COUNTER_IDs counterID) {	//  -1=error, COUNTER_IDs ununsed until now
 	const int bufSize = 3 ;
 	unsigned char buf[bufSize] ;
 	int ok = -1 ;
-	int automatic = 0 ;
 
 	USBtype_enum devType = (USBtype_enum)cwGetUSBType(deviceNo) ;
-	int version = cwGetVersion(deviceNo) ;
+	// int version = cwGetVersion(deviceNo) ;
 
 	if (devType == COUNTER00_DEVICE) {
 		buf[0] = CUSBaccess::Configure ;
@@ -713,7 +740,8 @@ CUSBaccess::GetManualOnCount(int deviceNo) {
 			}
 		}
 
-	sequenceNumber = (++sequenceNumber) & 0x1f ;
+	++sequenceNumber ;
+	sequenceNumber &= 0x1f ;
 
 	return rval ;
 	}
@@ -760,7 +788,8 @@ CUSBaccess::GetManualOnTime(int deviceNo) {
 		rval = (int) (u_seconds / 1000000) ;
 		}
 
-	sequenceNumber = (++sequenceNumber) & 0x1f ;
+	++sequenceNumber ;
+	sequenceNumber &= 0x1f ;
 
 	return rval ;
 	}
@@ -773,8 +802,6 @@ CUSBaccess::GetOnlineOnCount(int deviceNo) {
 	USBtype_enum devType = (USBtype_enum)cwGetUSBType(deviceNo) ;
 	static int sequenceNumber = 1 ;
 	int timeout=-1, timeout2=-1 ;
-
-	cwDebugWrite("GetOnlineCount\n") ;
 
 	if (	(	devType == SWITCH1_DEVICE 
 			 || devType == AUTORESET_DEVICE 
@@ -822,9 +849,8 @@ CUSBaccess::GetOnlineOnCount(int deviceNo) {
 				deviceNo, (rval==-1)?"failed":"ok", sequenceNumber, timeout, timeout2) ;
 	cwDebugWrite(ds) ;
 
-	sequenceNumber = (++sequenceNumber) & 0x1f ;
-
-	cwDebugWrite("GetOnlineCout\n") ;
+	++sequenceNumber ;
+	sequenceNumber &= 0x1f ;
 
 	return rval ;
 	}
@@ -871,7 +897,8 @@ CUSBaccess::GetOnlineOnTime(int deviceNo) {
 		rval = (int) (u_seconds / 1000000) ;
 		}
 
-	sequenceNumber = (++sequenceNumber) & 0x1f ;
+	++sequenceNumber ;
+	sequenceNumber &= 0x1f ;
 
 	return rval ;
 	}
@@ -969,9 +996,14 @@ CUSBaccess::SyncDevice(int deviceNo, unsigned long int mask) {		// mask in case 
 		buf[0] |= 0x01 ;
 	// buf[0] = CUSBaccess::StartMeasuring ;
 	buf[1] = sequenceNumber ;
-	buf[2] = 0 ;
-	buf[3] = (unsigned char)(mask >> 8) & 0x7f ;
-	buf[4] = (unsigned char)(mask & 0xff) & 0x7f ;
+	if (cwIsIdeTec(deviceNo)) {
+		cwKB_GetHumiTemp(deviceNo, buf+2) ;		// buf[2 - 5] contains temperature in 4.1f Format - not used now
+		}
+	else {
+		buf[2] = 0 ;
+		buf[3] = (unsigned char)(mask >> 8) & 0x7f ;
+		buf[4] = (unsigned char)(mask & 0xff) & 0x7f ;
+		}
 
 	int type = (USBtype_enum)cwGetUSBType(deviceNo) ;
 	int version = cwGetVersion(deviceNo) ;
@@ -1000,14 +1032,100 @@ CUSBaccess::CalmWatchdog(int deviceNo, int minutes, int minutes2restart) {
 	return ok ;
 	}
 
-double CUSBaccess::GetTemperatureSimple(int deviceNo)
-{
-	int dummy;
-	double t = 0;
-	GetTemperature(deviceNo, &t, &dummy);
+static int ResetDone=0 ;
+float 
+CUSBaccess::GetTemperature(int deviceNo) {
+	double temperatur = -200. ;
+	static int zeit = 1234 ;
+	int neuzeit = -1 ;
+	static time_t lasttime = 0 ;
+	time_t now ;
+	time(&now) ;
 
-	return t;
-}
+	int devType = GetUSBType(deviceNo) ;
+	int r2 ;
+	for (r2 = 5 ; r2 > 0 ; r2--) {
+		int retry ;
+		for (retry = 20 ; retry > 0 ; retry--) {
+			if (!GetTemperature(deviceNo, &temperatur, &zeit)) {
+				if (ResetDone == 0)
+					break ;			// waiting for first RESET, dont wait
+				Sleep(200) ;		// wait a bit to settle after reset
+				}
+			else {
+				if (zeit == neuzeit && now != lasttime) {
+					ResetDone = 0 ;				// zeit didn't cjange - do reset
+					neuzeit = zeit ;
+					break ;
+					}
+				ResetDone = 1 ;					// we got a valid Temperature and the timig is ok! No Reset neccessary
+				break ;
+				}
+			}
+		if (ResetDone == 0 || retry == 0) {
+			ResetDevice(deviceNo) ;
+			ResetDone = 1 ;
+			Sleep(700) ;		// wait a bit to settle after reset
+			if (devType == HUMIDITY1_DEVICE || devType == HUMIDITY2_DEVICE) {		// Start command is needed
+				StartDevice(deviceNo) ;
+				Sleep(1200) ;			// takes some time to get the first valid values
+				}
+			continue ;
+			}
+		break ;
+		}
+	float ftemp = -200. ;
+	if (r2 > 0)
+		ftemp = temperatur ;
+	return ftemp ;
+	}
+
+float 
+CUSBaccess::GetHumidity(int deviceNo) {
+	double humidity = -200. ;
+	static int zeit = 1234 ;
+	int neuzeit = -1 ;
+	static time_t lasttime = 0 ;
+	time_t now ;
+	time(&now) ;
+	int r2 ;
+
+	int devType = GetUSBType(deviceNo) ;
+	for (r2 = 5 ; r2 > 0 ; r2--) {
+		int retry ;
+		for (retry = 20 ; retry > 0 ; retry--) {
+			if (!GetHumidity(deviceNo, &humidity, &zeit)) {
+				if (ResetDone == 0)
+					break ;			// waiting for first RESET, dont wait
+				Sleep(200) ;		// wait a bit to settle after reset
+				}
+			else {
+				if (zeit == neuzeit && now != lasttime) {
+					ResetDone = 0 ;				// zeit didn't cjange - do reset
+					neuzeit = zeit ;
+					break ;
+					}
+				ResetDone = 1 ;					// we got a valid Humidity and the timig is ok! No Reset neccessary
+				break ;
+				}
+			}
+		if (ResetDone == 0 || retry == 0) {
+			ResetDevice(deviceNo) ;
+			ResetDone = 1 ;
+			Sleep(700) ;		// wait a bit to settle after reset
+			if (devType == HUMIDITY1_DEVICE || devType == HUMIDITY2_DEVICE) {		// Start command is needed
+				StartDevice(deviceNo) ;
+				Sleep(1200) ;			// takes some time to get the first valid values
+				}
+			continue ;
+			}
+		break ;
+		}
+	float ftemp = -200. ;
+	if (r2 > 0)
+		ftemp = humidity ;
+	return ftemp ;
+	}
 
 int 
 CUSBaccess::GetTemperature(int deviceNo, double *Temperature, int *timeID) {
@@ -1023,6 +1141,121 @@ CUSBaccess::GetTemperature(int deviceNo, double *Temperature, int *timeID) {
 		}
 
 	switch ((USBtype_enum)cwGetUSBType(deviceNo)) {
+		case CONTACT00_DEVICE: {
+			const int bufSize = 6 ;
+			unsigned char buf[bufSize] ;
+			static int fakeTime = 1 ;
+			int knoxBoxType = cwIsIdeTec(deviceNo) ;
+			if (!knoxBoxType)
+				break ;						// special IdeTec implemantation
+			*timeID = fakeTime++ ;
+			if ((knoxBoxType & 3) != 3) {		// read standard sensor
+				// read temperature 
+				if (GetValue(deviceNo, buf, bufSize) == 0) {
+					ok = 0 ;
+					break ;
+					}
+//				*timeID  = ((buf[0] & 0x7f) << 8) + buf[1] ;			no standard Temp device
+				}
+			else {						// read second sensor, values placed in RAM
+				unsigned int lsb, msb ;
+				if (cwGetVersion(deviceNo) < 0x8140)	{	// old IdeTect device
+					*Temperature = -200 ;
+					ok = 0 ;
+					break ;
+					}
+				if (knoxBoxType & 0x80) {		// this is a humi device
+					unsigned int b4 ;
+					unsigned int addr = 0x79 ;		// KnoxBox .. V10
+					if ( (knoxBoxType & 3) == 3)	// V12
+						addr = 0xa4 ;
+					b4 = cwIOX(deviceNo, addr, -4) ;
+					unsigned char tm, tl ;
+					if ( (knoxBoxType & 3) == 3) {	// V12
+						if (b4 == 0xffffffff) 
+							b4 = cwKB_GetHumiTemp(deviceNo, 0) ;
+//						else
+//							X->KB_SetHumiTemp(deviceNo, b4) ;
+						if (b4 == 0xffffffff) {		// happen only once at starttime
+							*Temperature = -200.;
+							break;
+							}
+						tm = (b4 >> 24) & 0xff ;
+						tl = (b4 >> 16) & 0xff ;
+						}
+					else {
+	// old controller					X->KB_SetHumiTemp(deviceNo, b4) ;
+						tm = (b4 >> 8) & 0xff;
+						tl = b4 & 0xff;
+						if ((b4 = cwIOX(deviceNo, addr, -4)) == 0xffffffff) {
+							*Temperature = -200.;
+							break;
+							}
+						}
+					int temp = (tm << 8) + tl ;
+					*Temperature = -40.1 + 0.04 * temp;
+					if (*Temperature <= -39.99 || *Temperature > 200.) {
+						ok = 0;					// can't happen!
+						break ;
+						}
+					if ((knoxBoxType & 3) == 3) {	// V12
+						char seg[4], digits[64] ;
+						sprintf(digits, "% 4.1lf", *Temperature + 0.05) ;
+						if (*Temperature < 0.)
+							seg[0] = '-' ;
+						else if (digits[0] == ' ')
+							seg[0] = digits[0] - '0' ;
+						else
+							seg[0] = digits[0] - '0' ;
+						seg[1] = digits[1] - '0' ;
+						seg[2] = digits[2] - '0' ;
+						seg[3] = digits[4] - '0' ; // nnn.n
+						cwKB_SetHumiTemp(deviceNo, b4, seg[0], seg[1], seg[2], seg[3]) ;
+						}
+					break ;
+					}
+				else {
+					if ( (knoxBoxType & 3) == 3) {	// V12
+						lsb = cwIOX(deviceNo, 0xa5, -1) ;		// LSB
+						msb = cwIOX(deviceNo, 0xa4, -1) ;		// MSB
+						}
+					else {
+						lsb = cwIOX(deviceNo, 0x7b, -1) ;		// LSB
+						msb = cwIOX(deviceNo, 0x7c, -1) ;		// MSB
+						}
+					if (lsb >= 0 && msb >= 0) {
+						buf[3] = lsb ;
+						buf[2] = msb ;
+						}
+					else {
+						*Temperature = -200 ;
+						ok = 0 ;
+						break ;
+						}
+					}
+				if (lsb >= 0 && msb >= 0) {
+					buf[3] = lsb ;
+					buf[2] = msb ;
+					}
+				else {
+					*Temperature = -200 ;
+					ok = 0 ;
+					break ;
+					}
+				buf[0] = 0x80 ;			// indicate valid
+				}
+
+			int value = (buf[2] << 5) + (buf[3] >> 3) ;
+			if (value & 0x1000)		// negativ!
+				value = (value & 0xfff) - 0x1000 ;
+			int valid = (buf[0] & 0x80) ;	// MSB = valid-bit
+			if (!valid) { // invalid time
+				ok = 0 ;
+				break ;
+				}
+			*Temperature = value * 0.0625 ;
+			break ;
+			}
 		case TEMPERATURE_DEVICE: {
 			const int bufSize = 6 ;
 			unsigned char buf[bufSize] ;
@@ -1078,7 +1311,7 @@ CUSBaccess::GetTemperature(int deviceNo, double *Temperature, int *timeID) {
 			int version = cwGetVersion(deviceNo) ;
 
 			*timeID  = ((buf[0] & 0x3f) << 8) + buf[1] ;
-			int humi = (buf[2] << 8) + buf[3] ;
+			// int humi = (buf[2] << 8) + buf[3] ;
 			int temp = (buf[4] << 8) + buf[5] ;
 			int valid = ((buf[0] & 0xc0) == 0xc0) ;	// MSB = valid-bit
 			if (valid)
@@ -1107,7 +1340,6 @@ CUSBaccess::GetTemperature(int deviceNo, double *Temperature, int *timeID) {
 		double t = lastTemperature[deviceNo] ;
 		if (t > -199.) {
 			if (*Temperature < t - 1. || *Temperature > t + 1.)	// this should be measured twice
-#pragma message("das reicht nicht - Fehler tritt auch mit kleinen Differenzen auf (humi 21,4 = 0x5ff, vorher ca.0x615")
 				ok = 0 ;
 			}
 		lastTemperature[deviceNo] = *Temperature ;
@@ -1116,21 +1348,49 @@ CUSBaccess::GetTemperature(int deviceNo, double *Temperature, int *timeID) {
 	return ok ;
 	}
 
-double CUSBaccess::GetHumiditySimple(int deviceNo)
-{
-        int dummy;
-        double h;
-
-        GetHumidity(deviceNo, &h, &dummy);
-
-        return h;
-}
-
 int 
 CUSBaccess::GetHumidity(int deviceNo, double *Humidity, int *timeID) {
 	int ok = 1 ;
 
 	switch (cwGetUSBType(deviceNo)) {
+		case CONTACT00_DEVICE: {
+			static int fakeTime = 1;
+			int knoxBoxType = cwIsIdeTec(deviceNo);
+			if (!knoxBoxType || (knoxBoxType & 0x80) == 0)
+				break;						// special IdeTec implemantation
+			*timeID = fakeTime++;
+			unsigned int b4 ;
+			unsigned char hm, hl, tm, tl ;
+			if ((knoxBoxType & 3) == 3) {	// V12
+				/* already got data when calling GetTemperature()
+				b4 = X->IOX(deviceNo, 0xa4, -4) ; */
+				b4 = cwKB_GetHumiTemp(deviceNo, 0) ;
+				if (b4 == 0xffffffff) {
+					ok = 0 ;
+					break;
+					}
+				}
+			else {
+				if ((b4 = cwIOX(deviceNo, 0x79, -4)) == 0xffffffff) {
+					ok = 0 ;
+					break;
+					}
+				}
+			tm = (b4 >> 24) & 0xff;
+			tl = (b4 >> 16) & 0xff;
+			hm = (b4 >> 8) & 0xff;
+			hl = b4 & 0xff;
+			int humi = (hm << 8) + hl ;
+			int temp = (tm << 8) + tl ;
+			double t1 = -40.1 + 0.04 * temp;
+			double h1 = -2.0468 + 0.5872 * humi - 4.0845 * humi * humi / 10000;
+			*Humidity = h1 + (t1 - 25.) * (0.01 + 0.00128 * humi);
+			if (*Humidity < 0.)
+				*Humidity = 0.;		// this is possible in rare cases
+			else if (*Humidity > 99.)
+				*Humidity = 100.;		// according to manual
+			break;
+			}
 		case HUMIDITY1_DEVICE: {
 			const int bufSize = 7 ;
 			unsigned char buf[bufSize] ;
@@ -1168,9 +1428,196 @@ CUSBaccess::GetHumidity(int deviceNo, double *Humidity, int *timeID) {
 	}
 	
 
+int 
+CUSBaccess::SelectADC(int deviceNo, int subDevice) {
+	static int sequenceNumber = 1 ;
+	int rval = sequenceNumber ;
+	const int bufSize = 6 ;
+	unsigned char buf[bufSize] ;
+
+	if (cwIsIdeTec(deviceNo) == 0) {
+		buf[0] = GetInfo ;
+		buf[1] = subDevice ;
+		buf[2] = sequenceNumber ;
+		SetValue(deviceNo, buf, 3) ;
+		if (++sequenceNumber >= 128)
+			sequenceNumber = 1 ;
+		}
+	return rval ;
+	}
+
+float 
+CUSBaccess::GetADC(int deviceNo, int sequenceNumber, int subDevice) {
+	int ok = 0 ;
+	const int bufSize = 6 ;
+	unsigned char buf[bufSize] ;
+	float ftemp = -200. ;
+	int adcVal = 0 ;
+
+	int knoxBoxType = cwIsIdeTec(deviceNo) ;
+
+	if (knoxBoxType) {
+		if ((knoxBoxType & 3) == 3) {	// V12
+			static unsigned char TachoData[12] = {0} ;
+			if (subDevice == 0) {	// brightness sensor
+				unsigned int b4 ;
+				if ((b4 = cwIOX(deviceNo, 0xa8, -4)) == 0xffffffff) {
+					return -200. ;								// indicae error
+					}
+				unsigned char am = (b4 >> 24) & 0xff;
+				unsigned char al = (b4 >> 16) & 0xff;
+				adcVal = (am << 8) + al ;
+				ftemp = adcVal / 40.95 ;		// * 100 / 4095 (2**12-1)
+				// now preload the tacho values
+//				unsigned char c = X->IOX(deviceNo, 0xbc, -1) ;		// get checksum first
+				unsigned char b[12] ;
+				for (int rep=10 ; rep > 0 ; rep--) {
+					if ((b4 = cwIOX(deviceNo, 0xb0, -4)) == 0xffffffff)
+						continue ;
+					b[0] = (b4 >> 24) & 0xff ;
+					b[1] = (b4 >> 16) & 0xff ;
+					b[2] = (b4 >>  8) & 0xff ;
+					b[3] = (b4      ) & 0xff ;
+					}
+				for (int rep=10 ; rep > 0 ; rep--) {
+					if ((b4 = cwIOX(deviceNo, 0xb4, -4)) == 0xffffffff)
+						continue ;
+					b[4] = (b4 >> 24) & 0xff ;
+					b[5] = (b4 >> 16) & 0xff ;
+					b[6] = (b4 >>  8) & 0xff ;
+					b[7] = (b4      ) & 0xff ;
+					}
+				for (int rep=10 ; rep > 0 ; rep--) {
+					if ((b4 = cwIOX(deviceNo, 0xb8, -4)) == 0xffffffff)
+						continue ;
+					b[8] = (b4 >> 24) & 0xff ;
+					b[9] = (b4 >> 16) & 0xff ;
+					b[10] = (b4 >>  8) & 0xff ;
+					b[11] = (b4      ) & 0xff ;
+					}
+/*				unsigned char checksum = 0 ;
+				for (int i=0 ; i < 12 ; i++)
+					checksum += b[i] ;
+				if (c == (checksum & 0xff)) {
+*/					for (int i=0 ; i < 12 ; i++)
+						TachoData[i] = b[i] ;
+/*					}
+				else	// Debug info
+					TachoData[11] = (checksum & 0xff) ;
+*/				}
+			else {		// Tacho signal
+/*				int pulse ;
+				int addr = 0xb0 + subDevice - 1;
+				pulse = X->IOX(deviceNo, addr, -1) ;		// pulse per 256 ms
+				if (pulse == -1)	
+					return -200. ;								// indicae error
+
+				ftemp = pulse / 2.55 ;				// adapted to EBM pabst fans, max about 13000 
+*/				ftemp = TachoData[subDevice - 1] / 2.55 ;				// adapted to EBM pabst fans, max about 13000 
+				}
+			}
+		else {
+			if (subDevice == 2) {	// brightness sensor
+				unsigned int b4 ;
+				if ((b4 = cwIOX(deviceNo, 0x77, -4)) == 0xffffffff) {
+					return -200. ;								// indicae error
+					}
+				unsigned char am = (b4 >> 24) & 0xff;
+				unsigned char al = (b4 >> 16) & 0xff;
+				adcVal = (am << 8) + al ;
+				ftemp = adcVal / 40.95 ;		// * 100 / 4095 (2**12-1)
+				}
+			else {
+				int pulse ;
+				if (subDevice == 0)		// read standard sensor
+					pulse = cwIOX(deviceNo, 0x62, -1) ;		// pulse per 256 ms
+				else
+					pulse = cwIOX(deviceNo, 0x63, -1) ;		// pulse per 256 ms
+				if (pulse == -1 || pulse == 255)				// 255 is about 4 times too high
+					return -200. ;								// indicae error
+
+				ftemp = (pulse / 2.55) * 4.45 ;				// adapted to EBM pabst fans, max about 13000 
+				}
+			}
+
+		if (ftemp > 100.) {
+			if (ftemp > 102.)
+				ftemp = -200. ;
+			else
+				ftemp = 100. ;
+
+			}
+		return ftemp;
+		}
+
+
+#ifdef INOAGE		// Inoage just uses the Luminus, which 
+	if (subDevice != 0)
+		return -200. ;
+#endif
+	if (cwGetVersion(deviceNo) >= 0x10) {
+		for (int timeout=50 ; timeout > 0 ; timeout--) {
+			if (GetValue(deviceNo, buf, 6)) {
+				if ((buf[0] & 0xc0) != 0xc0) {	// valid bit + ADC bit
+	//				Sleep(25) ;
+					continue ;
+					}
+				if (sequenceNumber != 0 && buf[1] != sequenceNumber)	// just to be sure
+					continue ;				// no sleep, just kill the fifo
+				ok = 1 ;
+				break ;
+				}
+			}
+		if (ok) {
+			if (subDevice == 0)	
+				adcVal = (buf[2] << 8) + buf[3] ;
+			else
+				adcVal = (buf[4] << 8) + buf[5] ;
+			ftemp = adcVal / 40.95 ;		// * 100 / 4095 (2**12-1)
+			}
+		}
+	else {
+		for (int timeout=50 ; timeout > 0 ; timeout--) {
+			if (GetValue(deviceNo, buf, 4)) {
+				if ((buf[0] & 0xc0) != 0xc0) {	// valid bit + ADC bit
+	//				Sleep(25) ;
+					continue ;
+					}
+				if ((buf[0] & 7) != subDevice)	// not the right device
+					continue ;				// no sleep, just kill the fifo
+				if (buf[1] != sequenceNumber)
+					continue ;				// no sleep, just kill the fifo
+				ok = 1 ;
+				break ;
+				}
+			}
+		if (ok) {
+			adcVal = (buf[2] << 8) + buf[3] ;
+			ftemp = adcVal / 40.95 ;		// * 100 / 4095 (2**12-1)
+			}
+		}
+
+	return ftemp ;
+	}
+
+int
+CUSBaccess::IsAmpel(int deviceNo) {	// return true if this is a traffic light device
+	int rval = cwIsAmpel(deviceNo) ;
+
+	return rval ;
+	}
+
 int		// return 0 for pre 2014 designed devices, 13 for new devices
 CUSBaccess::GetHWversion(int deviceNo) {
 	int rval = cwGetHWversion(deviceNo) ;
+
+	return rval ;
+	}
+
+int		// return true if Ampel
+CUSBaccess::IsIdeTec(int deviceNo) {
+
+	int rval = cwIsIdeTec(deviceNo) ;
 
 	return rval ;
 	}

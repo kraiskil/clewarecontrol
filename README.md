@@ -31,6 +31,8 @@ or run the program with the -h switch:
 
 Please also check the website for tips and help.
 
+Note that you can combine multiple commands in one invocation of clewarecontrol.
+
 
 devices
 -------

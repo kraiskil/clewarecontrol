@@ -684,7 +684,7 @@ CUSBaccess::GetFrequency(int deviceNo, unsigned long int *counter, int subDevice
 
 
 int
-CUSBaccess::SetCounter(int deviceNo, int counter, enum COUNTER_IDs counterID) {	//  -1=error, COUNTER_IDs ununsed until now
+CUSBaccess::SetCounter(int deviceNo, int counter) {
 	const int bufSize = 3 ;
 	unsigned char buf[bufSize] ;
 	int ok = -1 ;
@@ -1158,7 +1158,7 @@ CUSBaccess::GetTemperature(int deviceNo, double *Temperature, int *timeID) {
 //				*timeID  = ((buf[0] & 0x7f) << 8) + buf[1] ;			no standard Temp device
 				}
 			else {						// read second sensor, values placed in RAM
-				unsigned int lsb, msb ;
+				int lsb, msb ;
 				if (cwGetVersion(deviceNo) < 0x8140)	{	// old IdeTect device
 					*Temperature = -200 ;
 					ok = 0 ;

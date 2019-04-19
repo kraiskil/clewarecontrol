@@ -102,7 +102,7 @@ class CUSBaccess {
 		virtual int			SetMultiSwitch(int deviceNo, unsigned long int value) ;
 		virtual int			SetMultiConfig(int deviceNo, unsigned long int directions) ;
 		virtual int			GetCounter(int deviceNo, enum COUNTER_IDs counterID) ;	// COUNTER_IDs ununsed until now
-		virtual int			SetCounter(int deviceNo, int counter, enum COUNTER_IDs counterID) ;	//  -1=error, COUNTER_IDs ununsed until now
+		virtual int			SetCounter(int deviceNo, int counter);
 		virtual int			SyncDevice(int deviceNo, unsigned long int mask) ;
 		virtual int			GetHWversion(int deviceNo) ;	// return HWversion (0 for pre 2014 designed devices, 13 for new devices)
 		virtual int			IsAmpel(int deviceNo) ;	// return true if this is a traffic light device

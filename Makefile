@@ -2,7 +2,7 @@ VERSION=4.5
 
 DEBUG=-g -W -pedantic #-pg #-fprofile-arcs
 LDFLAGS+=-L/usr/local/hidapi.git/lib -lhidapi-libusb
-CXXFLAGS+=-O3 -Wall -DVERSION=\"$(VERSION)\" $(DEBUG) -I/usr/local/hidapi.git/include
+CXXFLAGS+=-O3 -Wall -Wno-maybe-uninitialized -Werror -DVERSION=\"$(VERSION)\" $(DEBUG) -I/usr/local/hidapi.git/include
 CFLAGS+=$(CXXFLAGS)
 
 OBJS=main.o USBaccess.o USBaccessBasic.o error.o

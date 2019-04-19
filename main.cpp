@@ -37,6 +37,7 @@ double limit_min = 0.0, limit_max = 0.0;
 
 void sigh(int sig)
 {
+	(void) sig;
 	abrt = true;
 
 	fprintf(stderr, _("Aborting program\n"));
@@ -45,11 +46,13 @@ void sigh(int sig)
 std::string format(const char *fmt, ...)
 {
 	char *buffer = NULL;
-        va_list ap;
-
+	va_list ap;
+	int rv;
+ 
         va_start(ap, fmt);
-        (void)vasprintf(&buffer, fmt, ap);
+	rv = vasprintf(&buffer, fmt, ap);
         va_end(ap);
+	(void)rv;
 
 	std::string result = buffer;
 	free(buffer);
@@ -840,7 +843,7 @@ int do_command(int device_id, int command, int par, int par2, double offset)
 		}
 		else if (command == SET_COUNTER)
 		{
-			if (CWusb.SetCounter(usb_id, par2, (CUSBaccess::COUNTER_IDs)par) < 0)
+			if (CWusb.SetCounter(usb_id, par2) < 0)
 				fprintf(stderr, _("Failed to set counter %d\n"), par);
 
 			output(format(_("Counter %d set"), par));

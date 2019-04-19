@@ -143,10 +143,9 @@ cwOpenCleware() {
 // try to find disconnected devices - returns true if succeeded
 int
 cwRecover(int devNum) {
-	
-
+	(void)devNum;
 	return 0 ;		// not used here
-	}
+}
 
 unsigned int 
 cwKB_GetHumiTemp(int deviceNo, unsigned char *seg) {
@@ -217,6 +216,8 @@ unsigned char seqNum = 0 ;
 // returns 1 if ok or 0 in case of an error
 int		
 cwGetValue(int deviceNo, int UsagePage, int Usage, unsigned char *buf, int bufsize) {
+	(void)UsagePage;
+	(void)Usage;
 	int ok = 1 ;
 
 	if (deviceNo < 0 || deviceNo >= maxHID || data[deviceNo].handle == INVALID_HANDLE_VALUE)
@@ -235,6 +236,8 @@ cwGetValue(int deviceNo, int UsagePage, int Usage, unsigned char *buf, int bufsi
 
 int 
 cwSetValue(int deviceNo, int UsagePage, int Usage, unsigned char *buf, int bufsize) {
+	(void)UsagePage;
+	(void)Usage;
 	int ok = 1 ;
 	const int maxP1 = 16 ;
 	unsigned char p1[maxP1] ;

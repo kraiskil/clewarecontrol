@@ -22,7 +22,7 @@
 typedef enum { O_BRIEF, O_FULL, O_SS } output_t;
 output_t ot = O_FULL;
 
-int retry_count = 10;
+int retry_count = 1;
 double slp = 0.5;
 CUSBaccess CWusb;
 int USBcount = -1;
